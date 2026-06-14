@@ -1,0 +1,204 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-06-14",
+  "__export_source": "learning-axon",
+  "resources": [
+    {
+      "_id": "wrk_learning_axon",
+      "_type": "workspace",
+      "name": "Learning Axon — CQRS + Event Sourcing + Saga",
+      "description": "Axon Framework multi-service collection: Command, Query, Saga, Debit Card, Cheque Book"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "name": "Base Environment",
+      "parentId": "wrk_learning_axon",
+      "data": {
+        "command_host": "http://localhost:8080",
+        "query_host": "http://localhost:8085",
+        "saga_host": "http://localhost:8082",
+        "debit_card_host": "http://localhost:8083",
+        "cheque_book_host": "http://localhost:8090",
+        "account_id": ""
+      }
+    },
+
+    {
+      "_id": "fld_command",
+      "_type": "request_group",
+      "name": "Command Service (8080)",
+      "parentId": "wrk_learning_axon"
+    },
+    {
+      "_id": "req_create_account",
+      "_type": "request",
+      "name": "Create Account",
+      "parentId": "fld_command",
+      "method": "POST",
+      "url": "{{ command_host }}/bank-accounts",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"startingBalance\": 500.00,\n  \"currency\": \"USD\"\n}"
+      }
+    },
+    {
+      "_id": "req_credit_money",
+      "_type": "request",
+      "name": "Credit Money",
+      "parentId": "fld_command",
+      "method": "PUT",
+      "url": "{{ command_host }}/bank-accounts/credits/{{ account_id }}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"creditAmount\": 150.00,\n  \"currency\": \"USD\"\n}"
+      }
+    },
+    {
+      "_id": "req_debit_money",
+      "_type": "request",
+      "name": "Debit Money",
+      "parentId": "fld_command",
+      "method": "PUT",
+      "url": "{{ command_host }}/bank-accounts/debits/{{ account_id }}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"debitAmount\": 100.00,\n  \"currency\": \"USD\"\n}"
+      }
+    },
+    {
+      "_id": "req_list_events",
+      "_type": "request",
+      "name": "List Events for Account",
+      "parentId": "fld_command",
+      "method": "GET",
+      "url": "{{ command_host }}/bank-accounts/{{ account_id }}/events"
+    },
+    {
+      "_id": "req_replay",
+      "_type": "request",
+      "name": "Trigger Event Replay",
+      "parentId": "fld_command",
+      "method": "POST",
+      "url": "{{ command_host }}/bank-accounts/replay"
+    },
+    {
+      "_id": "req_tep_status",
+      "_type": "request",
+      "name": "Tracking Processor Status",
+      "parentId": "fld_command",
+      "method": "GET",
+      "url": "{{ command_host }}/bank-accounts/status"
+    },
+
+    {
+      "_id": "fld_query",
+      "_type": "request_group",
+      "name": "Query Service (8085)",
+      "parentId": "wrk_learning_axon"
+    },
+    {
+      "_id": "req_get_account",
+      "_type": "request",
+      "name": "Get Account (direct JPA)",
+      "parentId": "fld_query",
+      "method": "GET",
+      "url": "{{ query_host }}/bank-accounts/{{ account_id }}"
+    },
+    {
+      "_id": "req_get_account_query",
+      "_type": "request",
+      "name": "Get Account (Axon point-to-point query)",
+      "parentId": "fld_query",
+      "method": "GET",
+      "url": "{{ query_host }}/bank-accounts/{{ account_id }}/details"
+    },
+    {
+      "_id": "req_subscribe_credit",
+      "_type": "request",
+      "name": "Subscribe to Credit Notifications (SSE)",
+      "parentId": "fld_query",
+      "method": "GET",
+      "url": "{{ query_host }}/bank-accounts/notify/credit/{{ account_id }}"
+    },
+    {
+      "_id": "req_subscribe_debit",
+      "_type": "request",
+      "name": "Subscribe to Debit Notifications (SSE)",
+      "parentId": "fld_query",
+      "method": "GET",
+      "url": "{{ query_host }}/bank-accounts/notify/debit/{{ account_id }}"
+    },
+    {
+      "_id": "req_scatter_gather",
+      "_type": "request",
+      "name": "Scatter-Gather Query",
+      "parentId": "fld_query",
+      "method": "GET",
+      "url": "{{ query_host }}/bank-accounts/scatter/{{ account_id }}"
+    },
+
+    {
+      "_id": "fld_saga",
+      "_type": "request_group",
+      "name": "Saga Service (8082)",
+      "parentId": "wrk_learning_axon"
+    },
+    {
+      "_id": "req_saga_create_account",
+      "_type": "request",
+      "name": "Create Account (triggers SAGA)",
+      "parentId": "fld_saga",
+      "method": "POST",
+      "url": "{{ saga_host }}/bank-accounts",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"startingBalance\": 1000.00,\n  \"currency\": \"EUR\"\n}"
+      }
+    },
+
+    {
+      "_id": "fld_actuator",
+      "_type": "request_group",
+      "name": "Actuator / Health",
+      "parentId": "wrk_learning_axon"
+    },
+    {
+      "_id": "req_cmd_health",
+      "_type": "request",
+      "name": "Command Service — Health",
+      "parentId": "fld_actuator",
+      "method": "GET",
+      "url": "{{ command_host }}/actuator/health"
+    },
+    {
+      "_id": "req_query_health",
+      "_type": "request",
+      "name": "Query Service — Health",
+      "parentId": "fld_actuator",
+      "method": "GET",
+      "url": "{{ query_host }}/actuator/health"
+    },
+    {
+      "_id": "req_saga_health",
+      "_type": "request",
+      "name": "Saga Service — Health",
+      "parentId": "fld_actuator",
+      "method": "GET",
+      "url": "{{ saga_host }}/actuator/health"
+    },
+    {
+      "_id": "req_cmd_metrics",
+      "_type": "request",
+      "name": "Command Service — Prometheus Metrics",
+      "parentId": "fld_actuator",
+      "method": "GET",
+      "url": "{{ command_host }}/actuator/prometheus"
+    }
+  ]
+}

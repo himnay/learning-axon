@@ -1,0 +1,90 @@
+version: '3.9'
+
+services:
+
+  # ── Axon Server (event store + command/query bus) ────────────────────────────
+  axonserver:
+    image: axoniq/axonserver:latest
+    container_name: axonserver
+    ports:
+      - "8024:8024"   # UI dashboard
+      - "8124:8124"   # gRPC port for Axon clients
+    environment:
+      AXONIQ_AXONSERVER_DEVMODE_ENABLED: "true"
+    volumes:
+      - axonserver-data:/axonserver/data
+      - axonserver-events:/axonserver/events
+    networks:
+      - axon-net
+
+  # ── PostgreSQL (JPA event store / projection DB for production) ─────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: axon
+      POSTGRES_PASSWORD: axon
+      POSTGRES_DB: axondb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - axon-net
+
+  # ── RabbitMQ (AMQP event bus between command and query services) ─────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - axon-net
+
+  # ── Prometheus (metrics scraping) ────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    networks:
+      - axon-net
+
+  # ── Grafana (dashboards) ──────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - axon-net
+
+volumes:
+  axonserver-data:
+  axonserver-events:
+  postgres-data:
+  rabbitmq-data:
+  grafana-data:
+
+networks:
+  axon-net:
+    driver: bridge
