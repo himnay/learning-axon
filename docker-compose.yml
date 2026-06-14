@@ -1,0 +1,97 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  # Used by command, query, and saga services as their JPA datasource.
+  postgres:
+    image: postgres:16-alpine
+    container_name: axon-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: axon
+      POSTGRES_PASSWORD: axon
+      POSTGRES_DB: axondb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axon -d axondb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - axon-net
+
+  # ── RabbitMQ ─────────────────────────────────────────────────────────────────
+  # AMQP event bus: command-service publishes events; query-service consumes them.
+  # Management UI: http://localhost:15672  (guest / guest)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: axon-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - axon-net
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  # Scrapes /actuator/prometheus on all five services.
+  # UI: http://localhost:9090
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: axon-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    profiles:
+      - monitoring
+    networks:
+      - axon-net
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  # Pre-wired to Prometheus. Login: admin / admin
+  # UI: http://localhost:3000
+  grafana:
+    image: grafana/grafana:latest
+    container_name: axon-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    networks:
+      - axon-net
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  axon-net:
+    driver: bridge

@@ -104,9 +104,19 @@ AccountActivatedEvent
 ### 1. Start Infrastructure (Docker)
 
 ```bash
-cd docker
-docker compose up -d rabbitmq postgres
+# From the project root — starts PostgreSQL + RabbitMQ
+docker compose up -d
+
+# Add Prometheus + Grafana (optional monitoring)
+docker compose --profile monitoring up -d
 ```
+
+| Service | URL |
+|---------|-----|
+| RabbitMQ UI | http://localhost:15672 (guest / guest) |
+| PostgreSQL | localhost:5432 (axon / axon / axondb) |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin / admin) |
 
 ### 2. Build & Run
 
