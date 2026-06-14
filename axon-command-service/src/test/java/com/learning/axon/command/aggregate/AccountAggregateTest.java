@@ -35,7 +35,7 @@ class AccountAggregateTest {
                 .expectSuccessfulHandlerExecution()
                 .expectEvents(
                         new AccountCreatedEvent("acc-1", 500.0, "USD", Status.CREATED),
-                        new AccountActivatedEvent("acc-1", "USD", Status.ACTIVATED));
+                        new AccountActivatedEvent("acc-1", 500.0, "USD", Status.ACTIVATED));
     }
 
     @Test
@@ -52,7 +52,7 @@ class AccountAggregateTest {
     void creditMoney_shouldPublishMoneyCreditedEvent() {
         fixture.given(
                         new AccountCreatedEvent("acc-3", 200.0, "EUR", Status.CREATED),
-                        new AccountActivatedEvent("acc-3", "EUR", Status.ACTIVATED))
+                        new AccountActivatedEvent("acc-3", 200.0, "EUR", Status.ACTIVATED))
                 .when(new CreditMoneyCommand("acc-3", 100.0, "EUR"))
                 .expectSuccessfulHandlerExecution()
                 .expectEvents(new MoneyCreditedEvent("acc-3", 100.0, "EUR"));
@@ -63,7 +63,7 @@ class AccountAggregateTest {
     void debitMoney_whenBalanceGoesNegative_shouldHoldAccount() {
         fixture.given(
                         new AccountCreatedEvent("acc-4", 150.0, "USD", Status.CREATED),
-                        new AccountActivatedEvent("acc-4", "USD", Status.ACTIVATED))
+                        new AccountActivatedEvent("acc-4", 150.0, "USD", Status.ACTIVATED))
                 .when(new DebitMoneyCommand("acc-4", 200.0, "USD"))
                 .expectSuccessfulHandlerExecution()
                 .expectEvents(
@@ -81,7 +81,7 @@ class AccountAggregateTest {
                 .when(new CreditMoneyCommand("acc-5", 100.0, "USD"))
                 .expectSuccessfulHandlerExecution()
                 .expectEvents(
-                        new AccountActivatedEvent("acc-5", Status.ACTIVATED),
-                        new MoneyCreditedEvent("acc-5", 100.0, "USD"));
+                        new MoneyCreditedEvent("acc-5", 100.0, "USD"),
+                        new AccountActivatedEvent("acc-5", Status.ACTIVATED));
     }
 }

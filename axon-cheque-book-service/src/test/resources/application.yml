@@ -13,6 +13,6 @@ axon:
   axonserver:
     enabled: false
   serializer:
-    general: jackson
-    events: jackson
-    messages: jackson
+    general: xstream
+    events: xstream
+    messages: xstream

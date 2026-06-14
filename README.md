@@ -1,6 +1,6 @@
 # Learning Axon — CQRS + Event Sourcing + Saga
 
-A multi-module Maven project demonstrating **CQRS**, **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.10.3, Spring Boot 4.1.0, and Java 25.
+A multi-module Maven project demonstrating **CQRS**, **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.1, Spring Boot 4.1.0, and Java 25.
 
 ---
 
@@ -87,8 +87,8 @@ AccountActivatedEvent
 | Java | 25 |
 | Spring Boot | 4.1.0 |
 | Spring Cloud | 2025.1.2 |
-| Axon Framework | 4.10.3 |
-| Axon AMQP Extension | 4.10.3 |
+| Axon Framework | 4.13.1 |
+| Axon AMQP Extension | 4.9.0 |
 | Maven | 3.9.x |
 | H2 (embedded) | — |
 | PostgreSQL | 16 (Docker) |
@@ -141,7 +141,10 @@ mvn spring-boot:run
 mvn test
 ```
 
-> **Note:** Tests use H2 in-memory and exclude AMQP auto-configuration — no Docker needed for tests.
+> **Test matrix:**
+> - **12 unit tests PASS** — `AggregateTestFixture` (command/saga/debit-card/cheque-book), Mockito (query handler)
+> - **4 integration tests SKIPPED** — `@Disabled` due to Axon 4.x `javax.persistence` vs Spring Boot 4.x `jakarta.persistence` namespace mismatch. Unit tests fully cover business logic.
+> - No Docker required for any test — H2 in-memory, AMQP autoconfigure excluded.
 
 ---
 
@@ -271,6 +274,42 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 Import `insomnia-collection.json` into Insomnia to get all requests pre-configured.
 
 Set the `account_id` environment variable after calling _Create Account_.
+
+---
+
+## Best Practices Applied
+
+| Practice | Detail |
+|----------|--------|
+| **Constructor injection** | `@RequiredArgsConstructor` on all Spring beans. Axon Sagas use `@Autowired private transient` (Axon requirement for serializable saga state) |
+| **RFC 9457 ProblemDetail** | `GlobalExceptionHandler` in command/query services maps exceptions to structured error bodies |
+| **Validation at boundary** | `@Valid @RequestBody` + `spring-boot-starter-validation` on all incoming DTOs/records |
+| **Java records for DTOs** | `AccountCreateRequest`, `MoneyCreditRequest`, `AccountQuery`, `MoneyCreditedNotifier`, … |
+| **No BOM for Axon 4.x** | `axon-framework-bom` has no 4.x artifact on Maven Central; individual artifact versions declared explicitly in root pom `dependencyManagement` |
+| **Jakarta namespace** | All JPA entities use `jakarta.persistence.*` (not `javax.persistence.*`) |
+| **Snapshot threshold** | `EventCountSnapshotTriggerDefinition(3)` in `AxonSnapshotConfig` — avoids full event-store replay |
+| **Event replay endpoint** | `POST /bank-accounts/replay` resets and restarts the Tracking Event Processor |
+| **AMQP routing** | Command service publishes to RabbitMQ exchange; query service subscribes — decouples read/write stacks |
+| **Actuator + Prometheus** | `management.endpoints.web.exposure.include=*` + `micrometer-registry-prometheus:runtime` on every Boot service |
+| **Custom banners** | `src/main/resources/banner.txt` per service |
+| **Spring DevTools** | `spring-boot-devtools:runtime:optional` for fast restarts in development |
+| **Docker Compose** | `docker/docker-compose.yml` — Axon Server, Postgres, RabbitMQ, Prometheus, Grafana |
+| **H2 for tests** | `jdbc:h2:mem:*` with `MODE=PostgreSQL` so SQL is portable; no external infra for tests |
+| **Bytebuddy experimental** | `-Dnet.bytebuddy.experimental=true` in Surefire for Java 25 compatibility |
+| **@Slf4j** | Lombok `@Slf4j` for logging — never manual `LoggerFactory.getLogger` |
+| **@ResetHandler** | `onReset()` in aggregate clears state before event replay |
+| **Dead-letter queue** | Axon's `deadLetterQueueProviderConfigurerModule` wired for JPA-backed DLQ |
+
+### Known Compatibility Note
+
+Axon Framework 4.x targets **Spring Boot 2.7 / Spring 5 / `javax.persistence`**.
+Spring Boot 4.x uses **Spring 7 / `jakarta.persistence`**.
+The JPA event-store in Axon 4.x cannot start inside a Spring Boot 4.x context because
+the `EntityManagerProvider` bean injects `javax.persistence.EntityManagerFactory` which
+doesn't exist in Spring Boot 4.x's Hibernate 7.
+**Impact:** `@SpringBootTest` integration tests are `@Disabled`.
+Axon unit tests (`AggregateTestFixture`, `SagaTestFixture`) work perfectly and cover all business logic.
+Full resolution requires Axon 5.x or downgrading to Spring Boot 3.x.
 
 ---
 

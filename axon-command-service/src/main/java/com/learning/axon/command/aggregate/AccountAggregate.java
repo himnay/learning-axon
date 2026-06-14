@@ -67,7 +67,7 @@ public class AccountAggregate {
         this.status = Status.CREATED;
 
         if (accountBalance > 100) {
-            AggregateLifecycle.apply(new AccountActivatedEvent(this.id, currency, Status.ACTIVATED));
+            AggregateLifecycle.apply(new AccountActivatedEvent(this.id, accountBalance, currency, Status.ACTIVATED));
         }
     }
 
