@@ -281,9 +281,8 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ## Insomnia Collection
 
-Import `insomnia-collection.json` into Insomnia to get all requests pre-configured.
-
-Set the `account_id` environment variable after calling _Create Account_.
+- Import `insomnia-collection.json` into Insomnia to get all requests pre-configured
+- Set the `account_id` environment variable after calling _Create Account_
 
 ---
 
@@ -312,14 +311,11 @@ Set the `account_id` environment variable after calling _Create Account_.
 
 ### Known Compatibility Note
 
-Axon Framework 4.x targets **Spring Boot 2.7 / Spring 5 / `javax.persistence`**.
-Spring Boot 4.x uses **Spring 7 / `jakarta.persistence`**.
-The JPA event-store in Axon 4.x cannot start inside a Spring Boot 4.x context because
-the `EntityManagerProvider` bean injects `javax.persistence.EntityManagerFactory` which
-doesn't exist in Spring Boot 4.x's Hibernate 7.
-**Impact:** `@SpringBootTest` integration tests are `@Disabled`.
-Axon unit tests (`AggregateTestFixture`, `SagaTestFixture`) work perfectly and cover all business logic.
-Full resolution requires Axon 5.x or downgrading to Spring Boot 3.x.
+- **Axon Framework 4.x** targets Spring Boot 2.7 / Spring 5 / `javax.persistence`
+- **Spring Boot 4.x** uses Spring 7 / `jakarta.persistence`
+- **Root cause:** The JPA event-store in Axon 4.x cannot start inside a Spring Boot 4.x context because the `EntityManagerProvider` bean injects `javax.persistence.EntityManagerFactory`, which does not exist in Spring Boot 4.x's Hibernate 7
+- **Impact:** `@SpringBootTest` integration tests are `@Disabled`; Axon unit tests (`AggregateTestFixture`, `SagaTestFixture`) work perfectly and cover all business logic
+- **Resolution path:** Upgrade to Axon 5.x or downgrade to Spring Boot 3.x
 
 ---
 
@@ -331,6 +327,8 @@ To trigger a saga rollback in the cheque-book service, set `failure = true` in `
 private boolean failure = true; // simulate failure
 ```
 
-Restart the cheque-book service, then call `POST /bank-accounts` on the saga service.
-The saga will issue a debit card, then attempt to issue a cheque book (which fails),
-and automatically dispatch compensating `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`.
+- Restart the cheque-book service
+- Call `POST /bank-accounts` on the saga service
+- The saga will issue a debit card, then attempt to issue a cheque book (which fails)
+- Axon automatically dispatches compensating `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`
+- All compensating actions are logged and stored in the event store for full auditability
