@@ -1,5 +1,7 @@
 # Learning Axon — CQRS + Event Sourcing + Saga
 
+<img src="image/axoniq-logo.png" alt="AxonIQ" width="120"/>
+
 A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.1, Spring Boot 4.1.0, and Java 25. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
 
 This document is a deep dive into **how** and **why** the code is built the way it is: what CQRS and Event Sourcing actually mean, how Axon implements an Aggregate, how the read side is projected, and how a Saga coordinates a multi-step, multi-service business transaction with compensation. Every code walk-through below points at real classes in this repository — nothing here is aspirational.
@@ -701,3 +703,11 @@ private boolean failure = true; // simulate failure
 - The saga will issue a debit card, then attempt to issue a cheque book (which fails)
 - Axon automatically dispatches compensating `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`
 - All compensating actions are logged and stored in the event store for full auditability
+
+---
+
+## Ecosystem status (July 2026)
+
+- This repo pins **Axon Framework 4.13.1** (last 4.x line). The current major is **Axon 5** — [5.2.0 released 2026-07-09](https://discuss.axoniq.io/t/axon-and-axoniq-framework-release-5-2-0/6747) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors, exception-handler components, first-class Jakarta/Spring Boot 4 support).
+- Migrating to Axon 5 is the clean fix for the Spring Boot 4 JPA event-store incompatibility documented above.
+- Further reading: [Axon Framework](https://www.axoniq.io/axon-framework) · [GitHub](https://github.com/AxonIQ/AxonFramework) · [Baeldung guide](https://www.baeldung.com/axon-cqrs-event-sourcing)
