@@ -10,21 +10,21 @@ This document is a deep dive into **how** and **why** the code is built the way 
 
 ## Table of Contents
 
-1. [Why CQRS and Event Sourcing?](#why-cqrs-and-event-sourcing)
-2. [Component Architecture](#component-architecture)
-3. [The Command Side — Aggregates and Event Sourcing](#the-command-side--aggregates-and-event-sourcing)
-4. [The Query Side — Projections and Read Models](#the-query-side--projections-and-read-models)
-5. [The Saga — Orchestrating a Multi-Step Business Process](#the-saga--orchestrating-a-multi-step-business-process)
-6. [axon-shared — The Contract Between Services](#axon-shared--the-contract-between-services)
-7. [Modules](#modules)
-8. [GoF Design Patterns](#gof-design-patterns)
-9. [Tech Stack](#tech-stack)
-10. [Quick Start](#quick-start)
-11. [API Reference](#api-reference-command-service--port-8080)
-12. [Axon Concepts Demonstrated](#axon-concepts-demonstrated)
-13. [Monitoring](#monitoring)
-14. [Best Practices Applied](#best-practices-applied)
-15. [Testing Saga Rollback](#testing-saga-rollback)
+1. 💡 [Why CQRS and Event Sourcing?](#why-cqrs-and-event-sourcing)
+2. 🏗️ [Component Architecture](#component-architecture)
+3. 🔹 [The Command Side — Aggregates and Event Sourcing](#the-command-side--aggregates-and-event-sourcing)
+4. 🤖 [The Query Side — Projections and Read Models](#the-query-side--projections-and-read-models)
+5. 🔀 [The Saga — Orchestrating a Multi-Step Business Process](#the-saga--orchestrating-a-multi-step-business-process)
+6. 🌐 [axon-shared — The Contract Between Services](#axon-shared--the-contract-between-services)
+7. 🏗️ [Modules](#modules)
+8. 🏗️ [GoF Design Patterns](#gof-design-patterns)
+9. 🧰 [Tech Stack](#tech-stack)
+10. 🚀 [Quick Start](#quick-start)
+11. 📚 [API Reference](#api-reference-command-service--port-8080)
+12. 💡 [Axon Concepts Demonstrated](#axon-concepts-demonstrated)
+13. 📈 [Monitoring](#monitoring)
+14. ✅ [Best Practices Applied](#best-practices-applied)
+15. 🧪 [Testing Saga Rollback](#testing-saga-rollback)
 
 ---
 
