@@ -35,8 +35,12 @@ This document is a deep dive into **how** and **why** the code is built the way 
 
 In a conventional CRUD service, a single model (one JPA entity, one table) is used both to *decide* whether a change is valid and to *answer questions* about the current state. **Command Query Responsibility Segregation** rejects that assumption: it says the model optimized for validating and applying a change (the **write model**) is rarely the model that is convenient for querying (the **read model**), so split them into two independently deployable, independently scalable code paths:
 
+<ul>
+
 - A **command side** that accepts *intents to change state* (`CreateAccountCommand`, `CreditMoneyCommand`, `DebitMoneyCommand`, …), validates them against business rules, and — if valid — records that the change happened.
 - A **query side** that only ever answers "what does the world look like right now / historically", built from a model shaped entirely for reading (flat tables, denormalized views, whatever the UI needs).
+
+</ul>
 
 In this repository that split is literally two Maven modules and two Spring Boot processes: `axon-command-service` (port 8080) owns `AccountAggregate` and the event store; `axon-query-service` (port 8085) owns `AccountEntity` and a plain `account_details` JPA table. They do not share a database. They communicate only through **events** carried over RabbitMQ (see [Component Architecture](#component-architecture)).
 
@@ -105,8 +109,12 @@ flowchart TB
 
 Two things are worth noting about the topology:
 
+<ul>
+
 - **`axon-command-service` and `axon-query-service` never talk directly.** They are decoupled entirely through AMQP: the command service's `axon.amqp.exchange=axon.event.sourcing.topic` publishes every applied event; the query service's `AmqpEventListener` bean wires a `SpringAMQPMessageSource` to the same exchange's queue (`axon.event.sourcing.topic.queue`), and `AxonQueryConfig` forces `usingSubscribingEventProcessors()` so those AMQP messages are handled synchronously as they arrive rather than through Axon's own tracking-token mechanism (which is reserved for the command service's local `TrackingEventProcessor`, used for replay — see [The Command Side](#the-command-side--aggregates-and-event-sourcing)).
 - **`axon-saga-service`, `axon-debit-card-service`, and `axon-cheque-book-service` communicate over Axon's in-process command bus**, not AMQP — in this demo they are separate Maven modules/services conceptually, but the saga dispatches `IssueDebitCardCommand`/`IssueChequeBookCommand` through the same `CommandGateway` abstraction used everywhere else in the codebase. (In a fully distributed deployment, this is exactly the seam where an `axon-server-connector` or another message-bus binding would be dropped in without touching any handler code — command handler routing is external to the aggregate.)
+
+</ul>
 
 ---
 
@@ -117,8 +125,12 @@ Two things are worth noting about the topology:
 
 An **Aggregate** is Axon's unit of consistency: a cluster of state that is loaded, mutated, and persisted atomically, identified by a single `@AggregateIdentifier`. In Domain-Driven Design terms it's the aggregate root. Two annotations do all the work:
 
+<ul>
+
 - `@CommandHandler` — a method (or constructor) that receives a `Command` message, validates it against the aggregate's *current* in-memory state, and — if the command is valid — calls `AggregateLifecycle.apply(event)` to record that something happened. **It never mutates fields directly.**
 - `@EventSourcingHandler` — a method that receives an event (either one just applied, or one being replayed from the event store) and is the *only* place allowed to mutate the aggregate's fields.
+
+</ul>
 
 This separation is the whole trick of event sourcing: applying an event and event-sourcing that same event are two different method invocations. The command handler decides *whether* something should happen; the event-sourcing handler decides *what that means for in-memory state*. Because state mutation only ever happens inside `@EventSourcingHandler` methods, **replaying the exact same sequence of past events reconstructs the exact same aggregate state** — which is what happens every time Axon loads an aggregate from the event store to handle a new command.
 
@@ -244,8 +256,12 @@ public void onHoldDeadline(String accountId) {
 
 Both are small, focused aggregates that exist purely to be commanded by the saga and to publish a single completion event:
 
+<ul>
+
 - `DebitCardAggregate` (`axon-debit-card-service`) — its constructor handles `IssueDebitCardCommand` and applies `DebitCardIssuedEvent`; a second constructor handles `CancelIssuedDebitCardCommand`, the compensating action for saga rollback. Verified by `DebitCardAggregateTest`: *"should publish DebitCardIssuedEvent when IssueDebitCardCommand is received"*.
 - `ChequeBookAggregate` (`axon-cheque-book-service`) — same shape, but carries a `failure` boolean field used purely to demonstrate saga rollback on demand:
+
+</ul>
 
 ```java
 @EventSourcingHandler
@@ -332,8 +348,12 @@ This is Axon's **subscription query** mechanism: `AccountQueryController.subscri
 
 Two more query shapes are demonstrated side-by-side in `AccountQueryController` / `AccountQueryServiceImpl`:
 
+<ul>
+
 - **Point-to-point**: `GET /bank-accounts/{accountId}/details` → `queryGateway.query(new AccountQuery(accountId), ...)` → routed to exactly one `@QueryHandler` (`AccountQueryServiceImpl.getAccountDetails`). Ordinary request/response.
 - **Scatter-gather**: `GET /bank-accounts/scatter/{accountId}` → `queryBus.scatterGather(query, 10, TimeUnit.SECONDS)` broadcasts to *every* `@QueryHandler(queryName = "scatter-gather")` registered (there are two here — one in `AccountEventHandler`, one in `AccountQueryServiceImpl` — each answering independently) and collects all responses within a timeout window. It's a fan-out/fan-in query, useful when multiple read models could answer the same question and you want to compare or merge results.
+
+</ul>
 
 A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entirely and calls the JPA repository directly — included deliberately to contrast "ask through the CQRS query infrastructure" against "just read the database", since both are legitimate depending on whether you need query-bus features (routing, subscriptions, interceptors) or not.
 
@@ -419,11 +439,15 @@ Notice what does *not* happen anywhere in this flow: there is no distributed loc
 
 Every service above depends on `axon-shared` (a plain library JAR — its Spring Boot Maven plugin repackage step is explicitly skipped, since it's a dependency, not a runnable service). It contains **no business logic**, only the message vocabulary that lets independently-deployed services agree on what a `CreateAccountCommand` or a `MoneyCreditedEvent` looks like on the wire:
 
+<ul>
+
 - **`commands/`** — `CreateAccountCommand`, `CreditMoneyCommand`, `DebitMoneyCommand` (all extending `BaseCommand<T>`, which carries the `@TargetAggregateIdentifier` Axon needs to route a command to the right aggregate instance), plus the saga's command vocabulary: `IssueDebitCardCommand` / `CancelIssuedDebitCardCommand`, `IssueChequeBookCommand` / `CancelIssuedChequeBookCommand`, `AccountUpdateCommand` / `CancelAccountUpdateCommand`, `AccountInactiveCommand`.
 - **`events/`** — `AccountCreatedEvent`, `AccountActivatedEvent`, `AccountHeldEvent`, `AccountInactiveEvent`, `AccountUpdatedEvent`, `MoneyCreditedEvent`, `MoneyDebitedEvent` (all extending `BaseEvent<T>`), plus the two saga-participant completion events `DebitCardIssuedEvent` and `ChequeBookIssuedEvent`, which are intentionally *not* subclasses of `BaseEvent` since they don't belong to the `AccountAggregate`'s own identity.
 - **`enums/Status`** — the single state-machine vocabulary (`CREATED`, `ACTIVATED`, `HOLD`, `INACTIVE`, `COMPLETED`, `DEBIT_CARD_ISSUED`, `CHEQUE_BOOK_ISSUED`) shared by every aggregate and the read-model entity, so a status value means the same thing everywhere it appears.
 - **`queries/`** — `AccountQuery` (point-to-point) and `AccountDetailsQuery` (subscription, with offset/limit), plus **`notifiers/`** — `MoneyCreditedNotifier` / `MoneyDebitNotifier`, marker records used purely to key a subscription query to a specific notification stream.
 - **`models/`** — the REST-facing DTOs (`AccountCreateRequest`, `MoneyCreditRequest`, `MoneyDebitRequest`), validated at the boundary with `jakarta.validation` (`@Positive`, `@NotBlank`) before ever becoming a command.
+
+</ul>
 
 Because commands and events are serialized (Jackson) and sent across process boundaries (AMQP to the query service; effectively "across" a service boundary even when dispatched in-process to the saga participants), every class in `axon-shared` doubles as a versioned wire contract — changing a field here is a breaking change to every service that depends on this module, which is precisely why it's factored out into its own artifact rather than duplicated per service.
 
@@ -664,8 +688,12 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ## Insomnia Collection
 
+<ul>
+
 - Import `insomnia-collection.json` into Insomnia to get all requests pre-configured
 - Set the `account_id` environment variable after calling _Create Account_
+
+</ul>
 
 ---
 
@@ -695,11 +723,15 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ### Known Compatibility Note
 
+<ul>
+
 - **Axon Framework 4.x** targets Spring Boot 2.7 / Spring 5 / `javax.persistence`
 - **Spring Boot 4.x** uses Spring 7 / `jakarta.persistence`
 - **Root cause:** The JPA event-store in Axon 4.x cannot start inside a Spring Boot 4.x context because the `EntityManagerProvider` bean injects `javax.persistence.EntityManagerFactory`, which does not exist in Spring Boot 4.x's Hibernate 7
 - **Impact:** `@SpringBootTest` integration tests are `@Disabled`; Axon unit tests (`AggregateTestFixture`, `SagaTestFixture`) work perfectly and cover all business logic
 - **Resolution path:** Upgrade to Axon 5.x or downgrade to Spring Boot 3.x
+
+</ul>
 
 ---
 
@@ -712,16 +744,24 @@ To trigger a saga rollback in the cheque-book service, set `failure = true` in `
 private boolean failure = true; // simulate failure
 ```
 
+<ul>
+
 - Restart the cheque-book service
 - Call `POST /bank-accounts` on the saga service
 - The saga will issue a debit card, then attempt to issue a cheque book (which fails)
 - Axon automatically dispatches compensating `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`
 - All compensating actions are logged and stored in the event store for full auditability
 
+</ul>
+
 ---
 
 ## Ecosystem status (July 2026)
 
+<ul>
+
 - This repo pins **Axon Framework 4.13.1** (last 4.x line). The current major is **Axon 5** — [5.2.0 released 2026-07-09](https://discuss.axoniq.io/t/axon-and-axoniq-framework-release-5-2-0/6747) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors, exception-handler components, first-class Jakarta/Spring Boot 4 support).
 - Migrating to Axon 5 is the clean fix for the Spring Boot 4 JPA event-store incompatibility documented above.
 - Further reading: [Axon Framework](https://www.axoniq.io/axon-framework) · [GitHub](https://github.com/AxonIQ/AxonFramework) · [Baeldung guide](https://www.baeldung.com/axon-cqrs-event-sourcing)
+
+</ul>
