@@ -28,7 +28,8 @@ This document is a deep dive into **how** and **why** the code is built the way 
 
 ---
 
-## Why CQRS and Event Sourcing?
+<a id="why-cqrs-and-event-sourcing"></a>
+## 1. 💡 Why CQRS and Event Sourcing?
 
 ### CQRS: splitting reads from writes
 
@@ -49,7 +50,8 @@ Why pair the two patterns? Event Sourcing gives CQRS's write side a complete, re
 
 ---
 
-## Component Architecture
+<a id="component-architecture"></a>
+## 2. 🏗️ Component Architecture
 
 Five Spring Boot services plus one shared library, wired through Axon's command/query gateways in-process and through RabbitMQ across process boundaries:
 
@@ -108,7 +110,8 @@ Two things are worth noting about the topology:
 
 ---
 
-## The Command Side — Aggregates and Event Sourcing
+<a id="the-command-side--aggregates-and-event-sourcing"></a>
+## 3. 🔹 The Command Side — Aggregates and Event Sourcing
 
 ### What an Axon Aggregate is
 
@@ -260,7 +263,8 @@ Setting `failure = true` and restarting the service causes the event-sourcing ha
 
 ---
 
-## The Query Side — Projections and Read Models
+<a id="the-query-side--projections-and-read-models"></a>
+## 4. 🤖 The Query Side — Projections and Read Models
 
 `axon-query-service` never touches `AccountAggregate` and has no event store of its own. Its entire job is to listen to the same domain events the command side publishes and fold them into a plain JPA table (`account_details`, mapped by `AccountEntity`) that is convenient to query — the textbook definition of a CQRS **projection**.
 
@@ -335,7 +339,8 @@ A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entir
 
 ---
 
-## The Saga — Orchestrating a Multi-Step Business Process
+<a id="the-saga--orchestrating-a-multi-step-business-process"></a>
+## 5. 🔀 The Saga — Orchestrating a Multi-Step Business Process
 
 ### What a Saga is, and why aggregates alone aren't enough
 
@@ -409,7 +414,8 @@ Notice what does *not* happen anywhere in this flow: there is no distributed loc
 
 ---
 
-## axon-shared — The Contract Between Services
+<a id="axon-shared--the-contract-between-services"></a>
+## 6. 🌐 axon-shared — The Contract Between Services
 
 Every service above depends on `axon-shared` (a plain library JAR — its Spring Boot Maven plugin repackage step is explicitly skipped, since it's a dependency, not a runnable service). It contains **no business logic**, only the message vocabulary that lets independently-deployed services agree on what a `CreateAccountCommand` or a `MoneyCreditedEvent` looks like on the wire:
 
@@ -423,7 +429,8 @@ Because commands and events are serialized (Jackson) and sent across process bou
 
 ---
 
-## Modules
+<a id="modules"></a>
+## 7. 🏗️ Modules
 
 | Module | Role | Port |
 |--------|------|------|
@@ -436,7 +443,8 @@ Because commands and events are serialized (Jackson) and sent across process bou
 
 ---
 
-## GoF Design Patterns
+<a id="gof-design-patterns"></a>
+## 8. 🏗️ GoF Design Patterns
 
 | Pattern | Category | Where Used |
 |---------|----------|------------|
@@ -451,7 +459,8 @@ Because commands and events are serialized (Jackson) and sent across process bou
 
 ---
 
-## Tech Stack
+<a id="tech-stack"></a>
+## 9. 🧰 Tech Stack
 
 | Technology | Version |
 |-----------|---------|
@@ -470,7 +479,8 @@ Because commands and events are serialized (Jackson) and sent across process bou
 
 ---
 
-## Quick Start
+<a id="quick-start"></a>
+## 10. 🚀 Quick Start
 
 ### 1. Start Infrastructure (Docker)
 
@@ -617,7 +627,8 @@ Content-Type: application/json
 
 ---
 
-## Axon Concepts Demonstrated
+<a id="axon-concepts-demonstrated"></a>
+## 12. 💡 Axon Concepts Demonstrated
 
 | Concept | Module |
 |---------|--------|
@@ -635,7 +646,8 @@ Content-Type: application/json
 
 ---
 
-## Monitoring
+<a id="monitoring"></a>
+## 13. 📈 Monitoring
 
 | Service | URL |
 |---------|-----|
@@ -657,7 +669,8 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ---
 
-## Best Practices Applied
+<a id="best-practices-applied"></a>
+## 14. ✅ Best Practices Applied
 
 | Practice | Detail |
 |----------|--------|
@@ -690,7 +703,8 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ---
 
-## Testing Saga Rollback
+<a id="testing-saga-rollback"></a>
+## 15. 🧪 Testing Saga Rollback
 
 To trigger a saga rollback in the cheque-book service, set `failure = true` in `ChequeBookAggregate`:
 
