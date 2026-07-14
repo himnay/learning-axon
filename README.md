@@ -563,7 +563,8 @@ mvn test
 
 ---
 
-## API Reference (Command Service — port 8080)
+<a id="api-reference-command-service--port-8080"></a>
+## 11. 📚 API Reference (Command Service — port 8080)
 
 ### Create Account
 ```http
@@ -610,7 +611,7 @@ POST /bank-accounts/replay
 
 ---
 
-## API Reference (Query Service — port 8085)
+### API Reference (Query Service — port 8085)
 
 ### Get Account (direct JPA)
 ```http
@@ -636,7 +637,7 @@ Accept: text/event-stream
 
 ---
 
-## API Reference (Saga Service — port 8082)
+### API Reference (Saga Service — port 8082)
 
 ### Create Account (triggers full saga)
 ```http
