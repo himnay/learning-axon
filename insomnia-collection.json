@@ -1,204 +1,272 @@
 {
   "_type": "export",
   "__export_format": 4,
-  "__export_date": "2026-06-14",
-  "__export_source": "learning-axon",
+  "__export_date": "2026-07-14T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v12.0.0",
   "resources": [
     {
-      "_id": "wrk_learning_axon",
+      "_id": "wrk_learning_0000000000000000000000000001",
       "_type": "workspace",
-      "name": "Learning Axon — CQRS + Event Sourcing + Saga",
-      "description": "Axon Framework multi-service collection: Command, Query, Saga, Debit Card, Cheque Book"
+      "parentId": null,
+      "name": "learning-axon :: REST",
+      "scope": "collection",
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "env_base",
+      "_id": "env_learning_0000000000000000000000000002",
       "_type": "environment",
+      "parentId": "wrk_learning_0000000000000000000000000001",
       "name": "Base Environment",
-      "parentId": "wrk_learning_axon",
       "data": {
-        "command_host": "http://localhost:8080",
-        "query_host": "http://localhost:8085",
-        "saga_host": "http://localhost:8082",
-        "debit_card_host": "http://localhost:8083",
-        "cheque_book_host": "http://localhost:8090",
-        "account_id": ""
-      }
+        "host": "localhost"
+      },
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
-
     {
-      "_id": "fld_command",
+      "_id": "fld_learning_0000000000000000000000000003",
       "_type": "request_group",
-      "name": "Command Service (8080)",
-      "parentId": "wrk_learning_axon"
+      "parentId": "wrk_learning_0000000000000000000000000001",
+      "name": "axon-command-service (:8080)",
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_create_account",
+      "_id": "req_learning_0000000000000000000000000004",
       "_type": "request",
-      "name": "Create Account",
-      "parentId": "fld_command",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "GET /bank-accounts/status",
+      "method": "GET",
+      "url": "http://{{ _.host }}:8080/bank-accounts/status",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 0,
+      "created": 1784063187842,
+      "modified": 1784063187842
+    },
+    {
+      "_id": "req_learning_0000000000000000000000000005",
+      "_type": "request",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "GET /bank-accounts/{accountId}/events",
+      "method": "GET",
+      "url": "http://{{ _.host }}:8080/bank-accounts/<accountId>/events",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 100,
+      "created": 1784063187842,
+      "modified": 1784063187842
+    },
+    {
+      "_id": "req_learning_0000000000000000000000000006",
+      "_type": "request",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "POST /bank-accounts",
       "method": "POST",
-      "url": "{{ command_host }}/bank-accounts",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "url": "http://{{ _.host }}:8080/bank-accounts",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 200,
+      "created": 1784063187842,
+      "modified": 1784063187842,
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"startingBalance\": 500.00,\n  \"currency\": \"USD\"\n}"
+        "text": "{\n  \n}"
       }
     },
     {
-      "_id": "req_credit_money",
+      "_id": "req_learning_0000000000000000000000000007",
       "_type": "request",
-      "name": "Credit Money",
-      "parentId": "fld_command",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "POST /bank-accounts/replay",
+      "method": "POST",
+      "url": "http://{{ _.host }}:8080/bank-accounts/replay",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 300,
+      "created": 1784063187842,
+      "modified": 1784063187842
+    },
+    {
+      "_id": "req_learning_0000000000000000000000000008",
+      "_type": "request",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "PUT /bank-accounts/credits/{accountId}",
       "method": "PUT",
-      "url": "{{ command_host }}/bank-accounts/credits/{{ account_id }}",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "url": "http://{{ _.host }}:8080/bank-accounts/credits/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 400,
+      "created": 1784063187842,
+      "modified": 1784063187842,
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"creditAmount\": 150.00,\n  \"currency\": \"USD\"\n}"
+        "text": "{\n  \n}"
       }
     },
     {
-      "_id": "req_debit_money",
+      "_id": "req_learning_0000000000000000000000000009",
       "_type": "request",
-      "name": "Debit Money",
-      "parentId": "fld_command",
+      "parentId": "fld_learning_0000000000000000000000000003",
+      "name": "PUT /bank-accounts/debits/{accountId}",
       "method": "PUT",
-      "url": "{{ command_host }}/bank-accounts/debits/{{ account_id }}",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "url": "http://{{ _.host }}:8080/bank-accounts/debits/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 500,
+      "created": 1784063187842,
+      "modified": 1784063187842,
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"debitAmount\": 100.00,\n  \"currency\": \"USD\"\n}"
+        "text": "{\n  \n}"
       }
     },
     {
-      "_id": "req_list_events",
-      "_type": "request",
-      "name": "List Events for Account",
-      "parentId": "fld_command",
-      "method": "GET",
-      "url": "{{ command_host }}/bank-accounts/{{ account_id }}/events"
-    },
-    {
-      "_id": "req_replay",
-      "_type": "request",
-      "name": "Trigger Event Replay",
-      "parentId": "fld_command",
-      "method": "POST",
-      "url": "{{ command_host }}/bank-accounts/replay"
-    },
-    {
-      "_id": "req_tep_status",
-      "_type": "request",
-      "name": "Tracking Processor Status",
-      "parentId": "fld_command",
-      "method": "GET",
-      "url": "{{ command_host }}/bank-accounts/status"
-    },
-
-    {
-      "_id": "fld_query",
+      "_id": "fld_learning_0000000000000000000000000010",
       "_type": "request_group",
-      "name": "Query Service (8085)",
-      "parentId": "wrk_learning_axon"
+      "parentId": "wrk_learning_0000000000000000000000000001",
+      "name": "axon-query-service (:8085)",
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_get_account",
+      "_id": "req_learning_0000000000000000000000000011",
       "_type": "request",
-      "name": "Get Account (direct JPA)",
-      "parentId": "fld_query",
+      "parentId": "fld_learning_0000000000000000000000000010",
+      "name": "GET /bank-accounts/notify/credit/{accountId}",
       "method": "GET",
-      "url": "{{ query_host }}/bank-accounts/{{ account_id }}"
+      "url": "http://{{ _.host }}:8085/bank-accounts/notify/credit/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 0,
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_get_account_query",
+      "_id": "req_learning_0000000000000000000000000012",
       "_type": "request",
-      "name": "Get Account (Axon point-to-point query)",
-      "parentId": "fld_query",
+      "parentId": "fld_learning_0000000000000000000000000010",
+      "name": "GET /bank-accounts/notify/debit/{accountId}",
       "method": "GET",
-      "url": "{{ query_host }}/bank-accounts/{{ account_id }}/details"
+      "url": "http://{{ _.host }}:8085/bank-accounts/notify/debit/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 100,
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_subscribe_credit",
+      "_id": "req_learning_0000000000000000000000000013",
       "_type": "request",
-      "name": "Subscribe to Credit Notifications (SSE)",
-      "parentId": "fld_query",
+      "parentId": "fld_learning_0000000000000000000000000010",
+      "name": "GET /bank-accounts/scatter/{accountId}",
       "method": "GET",
-      "url": "{{ query_host }}/bank-accounts/notify/credit/{{ account_id }}"
+      "url": "http://{{ _.host }}:8085/bank-accounts/scatter/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 200,
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_subscribe_debit",
+      "_id": "req_learning_0000000000000000000000000014",
       "_type": "request",
-      "name": "Subscribe to Debit Notifications (SSE)",
-      "parentId": "fld_query",
+      "parentId": "fld_learning_0000000000000000000000000010",
+      "name": "GET /bank-accounts/{accountId}",
       "method": "GET",
-      "url": "{{ query_host }}/bank-accounts/notify/debit/{{ account_id }}"
+      "url": "http://{{ _.host }}:8085/bank-accounts/<accountId>",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 300,
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_scatter_gather",
+      "_id": "req_learning_0000000000000000000000000015",
       "_type": "request",
-      "name": "Scatter-Gather Query",
-      "parentId": "fld_query",
+      "parentId": "fld_learning_0000000000000000000000000010",
+      "name": "GET /bank-accounts/{accountId}/details",
       "method": "GET",
-      "url": "{{ query_host }}/bank-accounts/scatter/{{ account_id }}"
+      "url": "http://{{ _.host }}:8085/bank-accounts/<accountId>/details",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 400,
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
-
     {
-      "_id": "fld_saga",
+      "_id": "fld_learning_0000000000000000000000000016",
       "_type": "request_group",
-      "name": "Saga Service (8082)",
-      "parentId": "wrk_learning_axon"
+      "parentId": "wrk_learning_0000000000000000000000000001",
+      "name": "axon-saga-service (:8082)",
+      "created": 1784063187842,
+      "modified": 1784063187842
     },
     {
-      "_id": "req_saga_create_account",
+      "_id": "req_learning_0000000000000000000000000017",
       "_type": "request",
-      "name": "Create Account (triggers SAGA)",
-      "parentId": "fld_saga",
+      "parentId": "fld_learning_0000000000000000000000000016",
+      "name": "POST /bank-accounts",
       "method": "POST",
-      "url": "{{ saga_host }}/bank-accounts",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "url": "http://{{ _.host }}:8082/bank-accounts",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": 0,
+      "created": 1784063187842,
+      "modified": 1784063187842,
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"startingBalance\": 1000.00,\n  \"currency\": \"EUR\"\n}"
+        "text": "{\n  \n}"
       }
-    },
-
-    {
-      "_id": "fld_actuator",
-      "_type": "request_group",
-      "name": "Actuator / Health",
-      "parentId": "wrk_learning_axon"
-    },
-    {
-      "_id": "req_cmd_health",
-      "_type": "request",
-      "name": "Command Service — Health",
-      "parentId": "fld_actuator",
-      "method": "GET",
-      "url": "{{ command_host }}/actuator/health"
-    },
-    {
-      "_id": "req_query_health",
-      "_type": "request",
-      "name": "Query Service — Health",
-      "parentId": "fld_actuator",
-      "method": "GET",
-      "url": "{{ query_host }}/actuator/health"
-    },
-    {
-      "_id": "req_saga_health",
-      "_type": "request",
-      "name": "Saga Service — Health",
-      "parentId": "fld_actuator",
-      "method": "GET",
-      "url": "{{ saga_host }}/actuator/health"
-    },
-    {
-      "_id": "req_cmd_metrics",
-      "_type": "request",
-      "name": "Command Service — Prometheus Metrics",
-      "parentId": "fld_actuator",
-      "method": "GET",
-      "url": "{{ command_host }}/actuator/prometheus"
     }
   ]
 }

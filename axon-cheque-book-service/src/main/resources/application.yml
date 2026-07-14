@@ -38,10 +38,11 @@ management:
     health:
       show-details: always
     prometheus:
-      enabled: true
+      access: true
   metrics:
-    export:
-      prometheus:
-        enabled: true
     tags:
       application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true

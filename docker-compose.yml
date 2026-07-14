@@ -1,5 +1,22 @@
 services:
 
+  # ── Axon Server (event store + command/query bus) ───────────────────────────
+  # UI dashboard: http://localhost:8024
+  axonserver:
+    image: axoniq/axonserver:latest
+    container_name: axonserver
+    restart: unless-stopped
+    ports:
+      - "8024:8024"   # UI dashboard
+      - "8124:8124"   # gRPC port for Axon clients
+    environment:
+      AXONIQ_AXONSERVER_DEVMODE_ENABLED: "true"
+    volumes:
+      - axonserver-data:/axonserver/data
+      - axonserver-events:/axonserver/events
+    networks:
+      - axon-net
+
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   # Used by command, query, and saga services as their JPA datasource.
   postgres:
@@ -87,6 +104,8 @@ services:
       - axon-net
 
 volumes:
+  axonserver-data:
+  axonserver-events:
   postgres-data:
   rabbitmq-data:
   prometheus-data:
