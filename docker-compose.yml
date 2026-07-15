@@ -20,7 +20,7 @@ services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   # Used by command, query, and saga services as their JPA datasource.
   postgres:
-    image: postgres:16-alpine
+    image: postgres:19beta1  # -alpine variant of 19beta1 is broken (missing postgres user)
     container_name: axon-postgres
     restart: unless-stopped
     ports:
@@ -30,7 +30,7 @@ services:
       POSTGRES_PASSWORD: axon
       POSTGRES_DB: axondb
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql   # PG18+: mount the parent dir (versioned subdir layout)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U axon -d axondb"]
       interval: 10s
