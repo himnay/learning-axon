@@ -12,17 +12,17 @@ on `axon5-migration`.
 Queried Maven Central's search API directly (`search.maven.org/solrsearch`) for every
 artifact this project depends on, rather than trusting blog-post version numbers:
 
-| Artifact | Latest 4.x | Latest 5.x found | Status |
-|---|---|---|---|
-| `org.axonframework:axon-messaging` | 4.11.2 | `5.0.0-M1` | **Milestone only**, not GA |
-| `org.axonframework:axon-eventsourcing` | 4.11.2 | `5.0.0-M1` | **Milestone only**, not GA |
-| `org.axonframework:axon-modelling` | 4.11.2 | `5.0.0-M1` | **Milestone only**, not GA |
-| `org.axonframework:axon-test` | 4.11.2 | `5.0.0-M1` | **Milestone only**, not GA |
-| `org.axonframework:axon-configuration` | 4.11.2 | *(none)* | No 5.x release at all yet |
-| `org.axonframework:axon-spring-boot-starter` | 4.11.2 | — | Coordinate retired for 5.x |
-| `org.axonframework.extensions.spring:axon-spring-boot-starter` | — | — | **Zero artifacts published under this group ID at all** |
-| `org.axonframework.extensions.amqp:axon-amqp` | 4.11.0 | — | **No 5.x release** |
-| `org.axonframework:axon-amqp` (old coordinate) | 4.9.0 (pinned here) | — | Superseded, never had a 5.x release either |
+| Artifact                                                       | Latest 4.x          | Latest 5.x found | Status                                                  |
+|----------------------------------------------------------------|---------------------|------------------|---------------------------------------------------------|
+| `org.axonframework:axon-messaging`                             | 4.11.2              | `5.0.0-M1`       | **Milestone only**, not GA                              |
+| `org.axonframework:axon-eventsourcing`                         | 4.11.2              | `5.0.0-M1`       | **Milestone only**, not GA                              |
+| `org.axonframework:axon-modelling`                             | 4.11.2              | `5.0.0-M1`       | **Milestone only**, not GA                              |
+| `org.axonframework:axon-test`                                  | 4.11.2              | `5.0.0-M1`       | **Milestone only**, not GA                              |
+| `org.axonframework:axon-configuration`                         | 4.11.2              | *(none)*         | No 5.x release at all yet                               |
+| `org.axonframework:axon-spring-boot-starter`                   | 4.11.2              | —                | Coordinate retired for 5.x                              |
+| `org.axonframework.extensions.spring:axon-spring-boot-starter` | —                   | —                | **Zero artifacts published under this group ID at all** |
+| `org.axonframework.extensions.amqp:axon-amqp`                  | 4.11.0              | —                | **No 5.x release**                                      |
+| `org.axonframework:axon-amqp` (old coordinate)                 | 4.9.0 (pinned here) | —                | Superseded, never had a 5.x release either              |
 
 Source: the [Axon 4→5 migration guide](https://docs.axoniq.io/axon-framework-reference/5.0/migration/)
 confirms the coordinate moves ([spring modules → `org.axonframework.extensions.spring`](https://discuss.axoniq.io/t/the-axon-framework-4-to-5-migration-guide-is-now-live/6579))
