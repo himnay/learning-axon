@@ -17,10 +17,10 @@ import org.axonframework.spring.stereotype.Aggregate;
  * GoF: Command — handles IssueDebitCardCommand and CancelIssuedDebitCardCommand.
  * GoF: Observer — updates state via @EventSourcingHandler.
  */
-@Slf4j
 @Data
-@NoArgsConstructor
+@Slf4j
 @Aggregate
+@NoArgsConstructor
 public class DebitCardAggregate {
 
     @AggregateIdentifier

@@ -9,8 +9,8 @@ import lombok.With;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /** GoF: Command — instructs the cheque-book service to issue a new cheque book. */
-@Getter
 @With
+@Getter
 @Builder
 @ToString
 @NoArgsConstructor

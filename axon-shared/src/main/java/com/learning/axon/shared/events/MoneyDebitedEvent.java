@@ -7,9 +7,9 @@ import lombok.ToString;
 
 /** GoF: Observer — published when money is debited from a bank account. */
 @Getter
+@NoArgsConstructor
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class MoneyDebitedEvent extends BaseEvent<String> {
 
     private double debitAmount;

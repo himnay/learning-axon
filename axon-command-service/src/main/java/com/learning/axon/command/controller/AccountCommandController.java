@@ -22,8 +22,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @RestController
-@RequestMapping("/bank-accounts")
 @RequiredArgsConstructor
+@RequestMapping("/bank-accounts")
 public class AccountCommandController {
 
     private final AccountCommandService accountCommandService;

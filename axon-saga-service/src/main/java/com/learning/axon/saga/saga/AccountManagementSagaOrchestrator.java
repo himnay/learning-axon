@@ -29,8 +29,8 @@ import java.util.UUID;
  * </ol>
  * Any step failure triggers compensating commands (rollback).
  */
-@Slf4j
 @Saga
+@Slf4j
 public class AccountManagementSagaOrchestrator {
 
     @Autowired

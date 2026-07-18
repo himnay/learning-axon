@@ -34,7 +34,7 @@ public class AccountEntity {
     @Column(name = "currency")
     private String currency;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "status")
+    @Enumerated(EnumType.STRING)
     private Status status;
 }

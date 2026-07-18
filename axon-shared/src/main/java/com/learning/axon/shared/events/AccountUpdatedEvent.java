@@ -8,9 +8,9 @@ import lombok.ToString;
 
 /** GoF: Observer — published when the saga completes and the account is marked as COMPLETED. */
 @Getter
+@NoArgsConstructor
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class AccountUpdatedEvent extends BaseEvent<String> {
 
     private Status status;

@@ -8,8 +8,8 @@ import java.util.List;
 
 /** Reads raw events from the Axon event store — useful for debugging and admin purposes. */
 @RestController
-@RequestMapping("/bank-accounts")
 @RequiredArgsConstructor
+@RequestMapping("/bank-accounts")
 public class AccountQueryController {
 
     private final AccountQueryService accountQueryService;

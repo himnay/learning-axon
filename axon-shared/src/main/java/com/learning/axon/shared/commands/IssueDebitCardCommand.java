@@ -9,8 +9,8 @@ import lombok.With;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /** GoF: Command — instructs the debit-card service to issue a new card. */
-@Getter
 @With
+@Getter
 @Builder
 @ToString
 @NoArgsConstructor

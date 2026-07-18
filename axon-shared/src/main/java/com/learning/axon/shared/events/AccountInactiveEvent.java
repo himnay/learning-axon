@@ -8,9 +8,9 @@ import lombok.ToString;
 
 /** GoF: Observer — published when a deadline fires and the account becomes INACTIVE. */
 @Getter
+@NoArgsConstructor
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class AccountInactiveEvent extends BaseEvent<String> {
 
     private Status status;

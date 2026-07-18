@@ -20,10 +20,10 @@ import org.axonframework.spring.stereotype.Aggregate;
  *
  * <p>Toggle {@code failure = true} to simulate a saga rollback scenario.
  */
-@Slf4j
 @Data
-@NoArgsConstructor
+@Slf4j
 @Aggregate
+@NoArgsConstructor
 public class ChequeBookAggregate {
 
     @AggregateIdentifier

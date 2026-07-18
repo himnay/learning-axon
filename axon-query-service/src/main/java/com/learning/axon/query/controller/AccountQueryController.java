@@ -28,8 +28,8 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @RestController
-@RequestMapping("/bank-accounts")
 @RequiredArgsConstructor
+@RequestMapping("/bank-accounts")
 public class AccountQueryController {
 
     private final AccountQueryService accountQueryService;

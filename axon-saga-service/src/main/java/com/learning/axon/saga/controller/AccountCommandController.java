@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.*;
 
 /** REST endpoint — triggers the account-opening saga by creating an account aggregate. */
 @RestController
-@RequestMapping("/bank-accounts")
 @RequiredArgsConstructor
+@RequestMapping("/bank-accounts")
 public class AccountCommandController {
 
     private final AccountCommandService accountCommandService;

@@ -24,10 +24,10 @@ import java.time.Duration;
  * GoF: Observer — reacts to stored events via @EventSourcingHandler.
  * Demonstrates Axon Deadline Manager for time-based compensating transactions.
  */
-@Slf4j
 @Data
-@NoArgsConstructor
+@Slf4j
 @Aggregate
+@NoArgsConstructor
 public class AccountAggregate {
 
     private static final String HOLD_DEADLINE = "holdAccountDeadline";

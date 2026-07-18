@@ -8,9 +8,9 @@ import lombok.ToString;
 
 /** GoF: Observer — published when an account balance goes negative (account on hold). */
 @Getter
+@NoArgsConstructor
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class AccountHeldEvent extends BaseEvent<String> {
 
     private Status status;

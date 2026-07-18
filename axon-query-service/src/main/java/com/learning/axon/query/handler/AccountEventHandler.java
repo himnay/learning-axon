@@ -23,8 +23,8 @@ import java.util.List;
  */
 @Slf4j
 @Component
-@ProcessingGroup("amqpEvents")
 @RequiredArgsConstructor
+@ProcessingGroup("amqpEvents")
 public class AccountEventHandler {
 
     private final AccountRepository accountRepository;

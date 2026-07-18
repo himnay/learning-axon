@@ -9,8 +9,8 @@ import lombok.With;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /** GoF: Command — compensating command to cancel a previously issued cheque book (saga rollback). */
-@Getter
 @With
+@Getter
 @Builder
 @ToString
 @NoArgsConstructor

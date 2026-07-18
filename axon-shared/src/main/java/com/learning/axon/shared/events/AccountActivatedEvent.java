@@ -8,9 +8,9 @@ import lombok.ToString;
 
 /** GoF: Observer — published when a bank account becomes active. */
 @Getter
+@NoArgsConstructor
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
 public class AccountActivatedEvent extends BaseEvent<String> {
 
     private double accountBalance;
