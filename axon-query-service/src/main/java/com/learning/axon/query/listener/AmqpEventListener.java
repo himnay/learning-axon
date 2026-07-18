@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AmqpEventListener {
 
+    /** Defines the account message source bean. */
     @Bean
     public SpringAMQPMessageSource accountMessageSource(AMQPMessageConverter messageConverter) {
         return new SpringAMQPMessageSource(messageConverter) {

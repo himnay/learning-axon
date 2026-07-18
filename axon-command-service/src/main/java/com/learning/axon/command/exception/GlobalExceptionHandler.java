@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /** Handles validation. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         String detail = ex.getBindingResult().getFieldErrors().stream()
@@ -34,6 +35,7 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /** Handles command execution. */
     @ExceptionHandler(CommandExecutionException.class)
     public ProblemDetail handleCommandExecution(CommandExecutionException ex) {
         log.error("Command execution failed", ex);
@@ -45,6 +47,7 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /** Handles illegal argument. */
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Invalid argument: {}", ex.getMessage());
@@ -54,6 +57,7 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /** Handles general. */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneral(Exception ex) {
         log.error("Unhandled exception", ex);

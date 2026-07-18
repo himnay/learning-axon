@@ -31,6 +31,7 @@ public class AccountQueryServiceImpl implements AccountQueryService {
         return accountRepository.findById(query.accountNumber()).orElse(new AccountEntity());
     }
 
+    /** Returns the scatter gather query. */
     @QueryHandler(queryName = "scatter-gather")
     public AccountEntity scatterGatherQuery(String accountId) {
         log.info("Scatter-gather query for [{}]", accountId);

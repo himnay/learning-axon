@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class DeadlineManagerConfig {
 
+    /** Defines the deadline manager bean. */
     @Bean
     public DeadlineManager deadlineManager(AxonConfiguration configuration) {
         return SimpleDeadlineManager.builder()

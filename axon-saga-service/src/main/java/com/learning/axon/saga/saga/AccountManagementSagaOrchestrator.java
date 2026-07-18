@@ -36,6 +36,7 @@ public class AccountManagementSagaOrchestrator {
     @Autowired
     private transient CommandGateway commandGateway;
 
+    /** Handles. */
     @StartSaga
     @SagaEventHandler(associationProperty = "id")
     public void handle(AccountActivatedEvent event) {
@@ -59,6 +60,7 @@ public class AccountManagementSagaOrchestrator {
         });
     }
 
+    /** Handles. */
     @SagaEventHandler(associationProperty = "debitCardId")
     public void handle(DebitCardIssuedEvent event) {
         log.info("SAGA step 2 — DebitCardIssuedEvent [{}]", event);
@@ -87,6 +89,7 @@ public class AccountManagementSagaOrchestrator {
         });
     }
 
+    /** Handles. */
     @SagaEventHandler(associationProperty = "chequeBookId")
     public void handle(ChequeBookIssuedEvent event) {
         log.info("SAGA step 3 — ChequeBookIssuedEvent [{}], completing account", event);
@@ -105,6 +108,7 @@ public class AccountManagementSagaOrchestrator {
         });
     }
 
+    /** Handles. */
     @SagaEventHandler(associationProperty = "id")
     public void handle(AccountUpdatedEvent event) {
         log.info("SAGA completed — AccountUpdatedEvent [{}]", event);

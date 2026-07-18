@@ -97,6 +97,7 @@ public class AccountAggregate {
         this.status = event.getStatus();
     }
 
+    /** Handles reset. */
     @ResetHandler
     public void onReset() {
         log.info("Pre-reset: clearing projection state before replay starts");

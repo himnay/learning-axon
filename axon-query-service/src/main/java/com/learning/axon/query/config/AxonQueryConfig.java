@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AxonQueryConfig {
 
+    /** Configures. */
     @Autowired
     public void configure(EventProcessingConfigurer configurer) {
         configurer.usingSubscribingEventProcessors();

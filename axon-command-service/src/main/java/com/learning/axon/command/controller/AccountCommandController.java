@@ -29,12 +29,14 @@ public class AccountCommandController {
     private final AccountCommandService accountCommandService;
     private final EventProcessingConfiguration eventProcessingConfiguration;
 
+    /** Creates account. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public String createAccount(@Valid @RequestBody AccountCreateRequest request) {
         return accountCommandService.createAccount(request);
     }
 
+    /** Returns the credit money. */
     @PutMapping("/credits/{accountId}")
     public CompletableFuture<String> creditMoney(
             @PathVariable String accountId,
@@ -42,6 +44,7 @@ public class AccountCommandController {
         return accountCommandService.creditMoneyToAccount(accountId, request);
     }
 
+    /** Returns the debit money. */
     @PutMapping("/debits/{accountId}")
     public String debitMoney(
             @PathVariable String accountId,
@@ -65,6 +68,7 @@ public class AccountCommandController {
         return ResponseEntity.ok("Replay triggered");
     }
 
+    /** Returns the status. */
     @GetMapping("/status")
     public Map<Integer, EventTrackerStatus> status() {
         return eventProcessingConfiguration

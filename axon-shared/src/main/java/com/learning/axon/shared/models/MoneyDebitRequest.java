@@ -5,6 +5,6 @@ import jakarta.validation.constraints.Positive;
 
 /** DTO for the debit-money REST endpoint. */
 public record MoneyDebitRequest(
-        @NotBlank String currency
         @Positive double debitAmount,
+        @NotBlank String currency
 ) {}

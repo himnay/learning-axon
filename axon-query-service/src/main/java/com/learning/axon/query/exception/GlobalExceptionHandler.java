@@ -16,6 +16,7 @@ import java.util.NoSuchElementException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /** Handles not found. */
     @ExceptionHandler(NoSuchElementException.class)
     public ProblemDetail handleNotFound(NoSuchElementException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
@@ -25,6 +26,7 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /** Handles general. */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneral(Exception ex) {
         log.error("Unhandled exception", ex);

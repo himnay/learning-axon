@@ -14,6 +14,7 @@ public class AccountQueryController {
 
     private final AccountQueryService accountQueryService;
 
+    /** Lists events. */
     @GetMapping("/{accountId}/events")
     public List<Object> listEvents(@PathVariable String accountId) {
         return accountQueryService.listEventsForAccount(accountId);

@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 class DebitCardServiceApplication {
 
+    /** Application entry point. */
     public static void main(String[] args) {
         SpringApplication.run(DebitCardServiceApplication.class, args);
     }

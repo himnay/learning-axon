@@ -34,6 +34,7 @@ public class AxonSnapshotConfig {
 
     private final EventStore eventStore;
 
+    /** Defines the snapshot executor bean. */
     @Bean
     public AsyncTaskExecutor snapshotExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -45,6 +46,7 @@ public class AxonSnapshotConfig {
         return executor;
     }
 
+    /** Defines the snapshotter bean. */
     @Bean
     public SpringAggregateSnapshotter snapshotter(
             ParameterResolverFactory parameterResolverFactory,
@@ -57,11 +59,13 @@ public class AxonSnapshotConfig {
                 .build();
     }
 
+    /** Defines the account aggregate factory bean. */
     @Bean
     public AggregateFactory<AccountAggregate> accountAggregateFactory() {
         return new SpringPrototypeAggregateFactory<>("accountAggregate");
     }
 
+    /** Defines the account aggregate repository bean. */
     @Bean
     public EventSourcingRepository<AccountAggregate> accountAggregateRepository(
             Snapshotter snapshotter,
@@ -75,11 +79,13 @@ public class AxonSnapshotConfig {
                 .build();
     }
 
+    /** Defines the event cache bean. */
     @Bean
     public Cache eventCache() {
         return new WeakReferenceCache();
     }
 
+    /** Defines the listener invocation error handler bean. */
     @Bean
     public ListenerInvocationErrorHandler listenerInvocationErrorHandler() {
         return PropagatingErrorHandler.INSTANCE;

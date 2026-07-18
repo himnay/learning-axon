@@ -15,6 +15,7 @@ public class AccountCommandController {
 
     private final AccountCommandService accountCommandService;
 
+    /** Creates account. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public String createAccount(@Valid @RequestBody AccountCreateRequest request) {

@@ -30,6 +30,7 @@ public class AccountEventHandler {
     private final AccountRepository accountRepository;
     private final QueryUpdateEmitter queryUpdateEmitter;
 
+    /** Handles the event. */
     @EventHandler
     public void on(AccountCreatedEvent event) {
         log.info("Handling AccountCreatedEvent [{}]", event);
@@ -41,6 +42,7 @@ public class AccountEventHandler {
         accountRepository.save(entity);
     }
 
+    /** Handles the event. */
     @EventHandler
     public void on(AccountActivatedEvent event) {
         log.info("Handling AccountActivatedEvent [{}]", event);
@@ -52,6 +54,7 @@ public class AccountEventHandler {
         accountRepository.save(entity);
     }
 
+    /** Handles the event. */
     @EventHandler
     public void on(AccountHeldEvent event) {
         log.info("Handling AccountHeldEvent [{}]", event);
@@ -60,6 +63,7 @@ public class AccountEventHandler {
         accountRepository.save(entity);
     }
 
+    /** Handles the event. */
     @EventHandler
     public void on(MoneyCreditedEvent event) {
         log.info("Handling MoneyCreditedEvent [{}]", event);
@@ -75,6 +79,7 @@ public class AccountEventHandler {
                 entity);
     }
 
+    /** Handles the event. */
     @EventHandler
     public void on(MoneyDebitedEvent event) {
         log.info("Handling MoneyDebitedEvent [{}]", event);
@@ -86,11 +91,13 @@ public class AccountEventHandler {
 
     // ── Query handlers ────────────────────────────────────────────────────────
 
+    /** Handles. */
     @QueryHandler
     public List<AccountEntity> handle(AccountDetailsQuery query) {
         return accountRepository.findAll();
     }
 
+    /** Handles scatter gather. */
     @QueryHandler(queryName = "scatter-gather")
     public AccountEntity handleScatterGather(String accountId) {
         AccountEntity entity = accountRepository.findById(accountId).orElse(new AccountEntity());
@@ -98,11 +105,13 @@ public class AccountEventHandler {
         return entity;
     }
 
+    /** Handles. */
     @QueryHandler
     public AccountEntity handle(MoneyDebitNotifier notifier) {
         return accountRepository.findById(notifier.id()).orElse(new AccountEntity());
     }
 
+    /** Handles reset. */
     @ResetHandler
     public void onReset() {
         log.info("Resetting query-side projection — clearing account_details table");

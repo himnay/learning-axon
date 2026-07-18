@@ -73,6 +73,7 @@ public class AccountAggregate {
         log.info("Account [{}] updated to status [{}] — SAGA completed", accountId, status);
     }
 
+    /** Handles the event. */
     @CommandHandler
     public void on(AccountInactiveCommand cmd, DeadlineManager deadlineManager) {
         String deadlineId = deadlineManager.schedule(
@@ -82,6 +83,7 @@ public class AccountAggregate {
                 MetaData.with(HOLD_DEADLINE, deadlineId));
     }
 
+    /** Handles hold deadline. */
     @DeadlineHandler(deadlineName = HOLD_DEADLINE)
     public void onHoldDeadline(String accountId) {
         log.info("Deadline fired for account [{}] — apply any expiry logic here", accountId);
