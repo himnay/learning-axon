@@ -23,8 +23,10 @@ This document is a deep dive into **how** and **why** the code is built the way 
 11. 📚 [API Reference](#api-reference-command-service--port-8080)
 12. 💡 [Axon Concepts Demonstrated](#axon-concepts-demonstrated)
 13. 📈 [Monitoring](#monitoring)
-14. ✅ [Best Practices Applied](#best-practices-applied)
-15. 🧪 [Testing Saga Rollback](#testing-saga-rollback)
+14. 🤝 [Insomnia Collection](#insomnia-collection)
+15. ✅ [Best Practices Applied](#best-practices-applied)
+16. 🧪 [Testing Saga Rollback](#testing-saga-rollback)
+17. 🏷️ [Ecosystem status](#ecosystem-status)
 
 ---
 
@@ -687,7 +689,8 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 ---
 
-## Insomnia Collection
+<a id="insomnia-collection"></a>
+## 14. 🤝 Insomnia Collection
 
 <ul>
 
@@ -699,7 +702,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 ---
 
 <a id="best-practices-applied"></a>
-## 14. ✅ Best Practices Applied
+## 15. ✅ Best Practices Applied
 
 | Practice                   | Detail                                                                                                                                         |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -737,7 +740,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 ---
 
 <a id="testing-saga-rollback"></a>
-## 15. 🧪 Testing Saga Rollback
+## 16. 🧪 Testing Saga Rollback
 
 To trigger a saga rollback in the cheque-book service, set `failure = true` in `ChequeBookAggregate`:
 
@@ -757,7 +760,8 @@ private boolean failure = true; // simulate failure
 
 ---
 
-## Ecosystem status (July 2026)
+<a id="ecosystem-status"></a>
+## 17. 🏷️ Ecosystem status (July 2026)
 
 <ul>
 
