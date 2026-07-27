@@ -21,13 +21,11 @@
     </description>
 
     <dependencies>
-        <!-- Internal shared library -->
         <dependency>
             <groupId>com.learning.axon</groupId>
             <artifactId>axon-shared</artifactId>
         </dependency>
 
-        <!-- Axon Framework with Axon Server connector (saga store requires persistence) -->
         <dependency>
             <groupId>org.axonframework</groupId>
             <artifactId>axon-spring-boot-starter</artifactId>
@@ -39,7 +37,6 @@
             </exclusions>
         </dependency>
 
-        <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -59,28 +56,24 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Observability -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- H2 for embedded saga store -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- PostgreSQL for production -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Test -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>

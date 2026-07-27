@@ -20,13 +20,11 @@
     </description>
 
     <dependencies>
-        <!-- Internal shared library -->
         <dependency>
             <groupId>com.learning.axon</groupId>
             <artifactId>axon-shared</artifactId>
         </dependency>
 
-        <!-- Axon Framework — exclude Axon Server connector; use embedded JPA event store -->
         <dependency>
             <groupId>org.axonframework</groupId>
             <artifactId>axon-spring-boot-starter</artifactId>
@@ -38,13 +36,11 @@
             </exclusions>
         </dependency>
 
-        <!-- Axon AMQP extension — publishes events to RabbitMQ for the query service -->
         <dependency>
             <groupId>org.axonframework.extensions.amqp</groupId>
             <artifactId>axon-amqp-spring-boot-starter</artifactId>
         </dependency>
 
-        <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -68,28 +64,24 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Observability -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- H2 for embedded JPA event store (dev / test without PostgreSQL) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- PostgreSQL (scope runtime — activated by profile or env var) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Test -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>

@@ -32,23 +32,18 @@
     </modules>
 
     <properties>
-        <!-- Override super-pom default (21) -->
         <java.version>25</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
 
-        <!-- Axon Framework 4.x — no BOM on Maven Central; use explicit versions.
-             4.13.1 is the latest 4.x release with Jakarta namespace + Spring Boot 3 support. -->
         <axon.version>4.13.1</axon.version>
         <axon.amqp.version>4.9.0</axon.amqp.version>
 
-        <!-- Build plugins -->
         <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Axon Framework 4.x — declared individually (no BOM artifact exists for 4.x on Central) -->
             <dependency>
                 <groupId>org.axonframework</groupId>
                 <artifactId>axon-messaging</artifactId>
@@ -80,7 +75,6 @@
                 <version>${axon.amqp.version}</version>
             </dependency>
 
-            <!-- Internal module -->
             <dependency>
                 <groupId>com.learning.axon</groupId>
                 <artifactId>axon-shared</artifactId>
@@ -89,7 +83,6 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Shared deps for ALL child modules -->
     <dependencies>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -133,7 +126,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <!-- Mockito + Axon need experimental mode for Java 25 class version -->
                     <argLine>-Dnet.bytebuddy.experimental=true</argLine>
                     <environmentVariables>
                         <DOCKER_HOST>unix://${user.home}/.docker/run/docker.sock</DOCKER_HOST>
