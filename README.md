@@ -715,7 +715,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 | **Snapshot threshold**     | `EventCountSnapshotTriggerDefinition(3)` in `AxonSnapshotConfig` — avoids full event-store replay                                              |
 | **Event replay endpoint**  | `POST /bank-accounts/replay` resets and restarts the Tracking Event Processor                                                                  |
 | **AMQP routing**           | Command service publishes to RabbitMQ exchange; query service subscribes — decouples read/write stacks                                         |
-| **Actuator + Prometheus**  | `management.endpoints.web.exposure.include=*` + `micrometer-registry-prometheus:runtime` on every Boot service                                 |
+| **Actuator + Prometheus**  | `management.endpoints.web.exposure.include=health,info,metrics,prometheus` (not `*` — no auth in front of actuator, so env/heapdump/threaddump stay off) + `micrometer-registry-prometheus:runtime` on every Boot service |
 | **Custom banners**         | `src/main/resources/banner.txt` per service                                                                                                    |
 | **Spring DevTools**        | `spring-boot-devtools:runtime:optional` for fast restarts in development                                                                       |
 | **Docker Compose**         | `docker/docker-compose.yml` — Axon Server, Postgres, RabbitMQ, Prometheus, Grafana                                                             |
@@ -723,7 +723,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 | **Bytebuddy experimental** | `-Dnet.bytebuddy.experimental=true` in Surefire for Java 25 compatibility                                                                      |
 | **@Slf4j**                 | Lombok `@Slf4j` for logging — never manual `LoggerFactory.getLogger`                                                                           |
 | **@ResetHandler**          | `onReset()` in aggregate clears state before event replay                                                                                      |
-| **Dead-letter queue**      | Axon's `deadLetterQueueProviderConfigurerModule` wired for JPA-backed DLQ                                                                      |
+| **Dead-letter queue**      | *Not implemented.* Axon supports a JPA-backed DLQ via `deadLetterQueueProviderConfigurerModule`; this repo doesn't wire it up — tracking-processor failures currently just log and retry per Axon's default behavior. Left as a follow-up.                |
 
 ### Known Compatibility Note
 
