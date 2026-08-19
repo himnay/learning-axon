@@ -1,4 +1,4 @@
-# <span style="color:hsl(161,68%,36%)">Learning Axon — CQRS + Event Sourcing + Saga</span>
+# <span style="color:hsl(161,80%,58%)">Learning Axon — CQRS + Event Sourcing + Saga</span>
 
 <img src="image/axoniq-logo.png" alt="AxonIQ" width="120"/>
 
@@ -8,7 +8,7 @@ This document is a deep dive into **how** and **why** the code is built the way 
 
 ---
 
-## <span style="color:hsl(168,68%,36%)">Table of Contents</span>
+## <span style="color:hsl(299,80%,58%)">Table of Contents</span>
 
 1. 💡 [Why CQRS and Event Sourcing?](#why-cqrs-and-event-sourcing)
 2. 🏗️ [Component Architecture](#component-architecture)
@@ -31,9 +31,9 @@ This document is a deep dive into **how** and **why** the code is built the way 
 ---
 
 <a id="why-cqrs-and-event-sourcing"></a>
-## <span style="color:hsl(175,68%,36%)">1. 💡 Why CQRS and Event Sourcing?</span>
+## <span style="color:hsl(76,80%,58%)">1. 💡 Why CQRS and Event Sourcing?</span>
 
-### <span style="color:hsl(182,68%,36%)">CQRS: splitting reads from writes</span>
+### <span style="color:hsl(214,80%,58%)">CQRS: splitting reads from writes</span>
 
 In a conventional CRUD service, a single model (one JPA entity, one table) is used both to *decide* whether a change is valid and to *answer questions* about the current state. **Command Query Responsibility Segregation** rejects that assumption: it says the model optimized for validating and applying a change (the **write model**) is rarely the model that is convenient for querying (the **read model**), so split them into two independently deployable, independently scalable code paths:
 
@@ -46,7 +46,7 @@ In a conventional CRUD service, a single model (one JPA entity, one table) is us
 
 In this repository that split is literally two Maven modules and two Spring Boot processes: `axon-command-service` (port 8080) owns `AccountAggregate` and the event store; `axon-query-service` (port 8085) owns `AccountEntity` and a plain `account_details` JPA table. They do not share a database. They communicate only through **events** carried over RabbitMQ (see [Component Architecture](#component-architecture)).
 
-### <span style="color:hsl(189,68%,36%)">Event Sourcing: the log *is* the truth</span>
+### <span style="color:hsl(351,80%,58%)">Event Sourcing: the log *is* the truth</span>
 
 The command side does not persist "the current balance of account X" as a mutable row. Instead, every state transition is captured as an immutable **domain event** — `AccountCreatedEvent`, `MoneyCreditedEvent`, `MoneyDebitedEvent`, `AccountActivatedEvent`, `AccountHeldEvent` — and Axon appends these events, in order, to an **event store** (an append-only log, backed here by a JPA table on H2/PostgreSQL). The *current* state of an `AccountAggregate` is never stored directly; it is **derived** by replaying every event for that aggregate ID, in order, from the beginning of time (or from the last snapshot — see below).
 
@@ -57,7 +57,7 @@ Why pair the two patterns? Event Sourcing gives CQRS's write side a complete, re
 ---
 
 <a id="component-architecture"></a>
-## <span style="color:hsl(196,68%,36%)">2. 🏗️ Component Architecture</span>
+## <span style="color:hsl(129,80%,58%)">2. 🏗️ Component Architecture</span>
 
 Five Spring Boot services plus one shared library, wired through Axon's command/query gateways in-process and through RabbitMQ across process boundaries:
 
@@ -121,9 +121,9 @@ Two things are worth noting about the topology:
 ---
 
 <a id="the-command-side--aggregates-and-event-sourcing"></a>
-## <span style="color:hsl(203,68%,44%)">3. 🔹 The Command Side — Aggregates and Event Sourcing</span>
+## <span style="color:hsl(266,80%,58%)">3. 🔹 The Command Side — Aggregates and Event Sourcing</span>
 
-### <span style="color:hsl(210,68%,44%)">What an Axon Aggregate is</span>
+### <span style="color:hsl(44,80%,58%)">What an Axon Aggregate is</span>
 
 An **Aggregate** is Axon's unit of consistency: a cluster of state that is loaded, mutated, and persisted atomically, identified by a single `@AggregateIdentifier`. In Domain-Driven Design terms it's the aggregate root. Two annotations do all the work:
 
@@ -136,7 +136,7 @@ An **Aggregate** is Axon's unit of consistency: a cluster of state that is loade
 
 This separation is the whole trick of event sourcing: applying an event and event-sourcing that same event are two different method invocations. The command handler decides *whether* something should happen; the event-sourcing handler decides *what that means for in-memory state*. Because state mutation only ever happens inside `@EventSourcingHandler` methods, **replaying the exact same sequence of past events reconstructs the exact same aggregate state** — which is what happens every time Axon loads an aggregate from the event store to handle a new command.
 
-### <span style="color:hsl(217,68%,44%)">`AccountAggregate` in `axon-command-service`</span>
+### <span style="color:hsl(181,80%,58%)">`AccountAggregate` in `axon-command-service`</span>
 
 `axon-command-service/src/main/java/com/learning/axon/command/aggregate/AccountAggregate.java` is the primary write model in this repository. Walking through it:
 
@@ -188,7 +188,7 @@ protected void on(MoneyDebitedEvent event) {
 
 A debit that pushes the balance negative triggers an automatic `AccountHeldEvent` (status → `HOLD`); a credit that brings a negative balance back to zero or above automatically re-`ACTIVATED`s the account. `AccountAggregateTest` verifies both directions: *"should publish MoneyDebitedEvent and AccountHeldEvent when balance goes negative"* and *"should reactivate account when credit brings negative balance to zero or above"*. The command handlers for `CreditMoneyCommand`/`DebitMoneyCommand` themselves are almost trivially thin — `AggregateLifecycle.apply(new MoneyCreditedEvent(...))` — because all the interesting decision logic (should this trigger a status change?) is expressed as a *consequence of applying an event*, not as a pre-condition on the command.
 
-### <span style="color:hsl(225,68%,44%)">Snapshots — event sourcing's practical caveat</span>
+### <span style="color:hsl(319,80%,58%)">Snapshots — event sourcing's practical caveat</span>
 
 Replaying *every* event since account creation, every single time a command arrives, does not scale once an aggregate has thousands of events. Axon's answer is a **snapshot**: a serialized copy of the aggregate's fields taken every *N* events, so that loading only needs to replay the snapshot plus events since it, not the entire history. `AxonSnapshotConfig` (`axon-command-service/.../config/AxonSnapshotConfig.java`) wires this up explicitly:
 
@@ -207,7 +207,7 @@ public EventSourcingRepository<AccountAggregate> accountAggregateRepository(
 
 `snapshotThreshold` defaults to `3` (`axon.snapshot.threshold.limit`) — after every 3rd event on a given `AccountAggregate` instance, Axon serializes its current state as a snapshot. The `SpringAggregateSnapshotter` does this asynchronously on a dedicated thread pool (`snapshotExecutor`, 5–10 threads) so command handling latency isn't blocked by snapshot serialization. `SpringPrototypeAggregateFactory` is the Factory Method that knows how to instantiate a *fresh* `AccountAggregate` (as a Spring prototype-scoped bean) before either a snapshot or event replay is folded into it — this is also why the class is annotated `@Aggregate(repository = "accountAggregateRepository")`: it points Axon at this custom-configured repository bean instead of the framework's auto-configured default.
 
-### <span style="color:hsl(232,68%,44%)">Replay and the Tracking Event Processor</span>
+### <span style="color:hsl(96,80%,58%)">Replay and the Tracking Event Processor</span>
 
 `AccountAggregate` is annotated `@ProcessingGroup("account_tep_group")`, which puts its `@EventSourcingHandler` invocations (when Axon replays for other purposes, e.g. rebuilding) under a named **Tracking Event Processor** — a processor that tracks its own position (a token) in the event stream and can be paused, reset, and restarted independently of the rest of the application. `AccountCommandController` exposes this directly:
 
@@ -223,7 +223,7 @@ public ResponseEntity<String> replay() {
 
 Calling `POST /bank-accounts/replay` shuts the processor down, resets its tracking token to the beginning, and restarts it — forcing every event in the store to be re-delivered to `@EventSourcingHandler`/`@ResetHandler` methods in that processing group. `AccountAggregate.onReset()` (annotated `@ResetHandler`) is the hook fired immediately before replay starts, used here just to log intent, but it's the place any in-memory/derived state would be cleared before Axon re-folds history into it. This is a genuinely different mechanism from the query side's AMQP-driven `usingSubscribingEventProcessors()` (see next section) — replay/reset semantics are a Tracking Event Processor feature specifically.
 
-### <span style="color:hsl(239,68%,44%)">The saga-side `AccountAggregate` is a different, simpler aggregate</span>
+### <span style="color:hsl(234,80%,58%)">The saga-side `AccountAggregate` is a different, simpler aggregate</span>
 
 `axon-saga-service` has its own `AccountAggregate` (`axon-saga-service/src/main/java/com/learning/axon/saga/aggregate/AccountAggregate.java`) — a deliberately separate class from the command-service one, scoped to the saga's own bounded context. It creates an account and **always** activates it (no balance threshold):
 
@@ -254,7 +254,7 @@ public void onHoldDeadline(String accountId) {
 
 `DeadlineManagerConfig` wires a `SimpleDeadlineManager` (in-memory scheduling, not durable across restarts — a `JpaDeadlineManager` would be swapped in for production durability). This is Axon's mechanism for *time-based* compensating/follow-up logic — schedule a fact ("mark this account inactive if nothing else happens within 60 seconds") to be delivered back to the aggregate later, without an external scheduler.
 
-### <span style="color:hsl(246,68%,44%)">Participant aggregates: `DebitCardAggregate` and `ChequeBookAggregate`</span>
+### <span style="color:hsl(11,80%,58%)">Participant aggregates: `DebitCardAggregate` and `ChequeBookAggregate`</span>
 
 Both are small, focused aggregates that exist purely to be commanded by the saga and to publish a single completion event:
 
@@ -282,11 +282,11 @@ Setting `failure = true` and restarting the service causes the event-sourcing ha
 ---
 
 <a id="the-query-side--projections-and-read-models"></a>
-## <span style="color:hsl(253,68%,44%)">4. 🤖 The Query Side — Projections and Read Models</span>
+## <span style="color:hsl(149,80%,58%)">4. 🤖 The Query Side — Projections and Read Models</span>
 
 `axon-query-service` never touches `AccountAggregate` and has no event store of its own. Its entire job is to listen to the same domain events the command side publishes and fold them into a plain JPA table (`account_details`, mapped by `AccountEntity`) that is convenient to query — the textbook definition of a CQRS **projection**.
 
-### <span style="color:hsl(260,68%,44%)">Getting events across the process boundary: AMQP</span>
+### <span style="color:hsl(286,80%,58%)">Getting events across the process boundary: AMQP</span>
 
 The command service publishes every applied event to a RabbitMQ topic exchange (`axon.event.sourcing.topic`, configured in `axon-command-service/src/main/resources/application.yml`). The query service's `AmqpEventListener` bean wires Axon's own `SpringAMQPMessageSource` to a `@RabbitListener` on the corresponding queue (`axon.event.sourcing.topic.queue`):
 
@@ -315,7 +315,7 @@ public void configure(EventProcessingConfigurer configurer) {
 
 The distinction matters: a *subscribing* processor handles a message synchronously, on the thread that delivered it (here, the RabbitMQ listener container thread) — there's no independent tracking token to manage because the queue itself (with its own ack/redelivery semantics) is the position-tracking mechanism. This is the correct choice when events are arriving from an external broker rather than being pulled from Axon's own event store.
 
-### <span style="color:hsl(267,68%,44%)">`AccountEventHandler` — the projection itself</span>
+### <span style="color:hsl(64,80%,50%)">`AccountEventHandler` — the projection itself</span>
 
 `axon-query-service/src/main/java/com/learning/axon/query/handler/AccountEventHandler.java`, annotated `@ProcessingGroup("amqpEvents")` to bind it to the AMQP message source above, is where events become rows:
 
@@ -333,7 +333,7 @@ public void on(AccountCreatedEvent event) {
 
 `AccountEventHandlerTest` confirms this behavior directly: *"should create account entity on AccountCreatedEvent"*. Handlers for `AccountActivatedEvent`, `AccountHeldEvent`, `MoneyCreditedEvent`, and `MoneyDebitedEvent` follow the same read-modify-write shape, each keeping the `account_details` row in sync with one more domain fact. `@ResetHandler onReset()` truncates the whole projection table — the read-side equivalent of the command side's replay: if the query service's table is ever suspect, wipe it and let a fresh AMQP replay of prior events (or a targeted command-side replay) repopulate it from scratch, since the events — not the projection — are the source of truth.
 
-### <span style="color:hsl(274,68%,44%)">Real-time updates: subscription queries</span>
+### <span style="color:hsl(201,80%,58%)">Real-time updates: subscription queries</span>
 
 `MoneyCreditedEvent`'s handler does one more thing beyond saving the entity:
 
@@ -346,7 +346,7 @@ queryUpdateEmitter.emit(
 
 This is Axon's **subscription query** mechanism: `AccountQueryController.subscribeToCredits()` exposes `GET /bank-accounts/notify/credit/{accountId}` as a Server-Sent-Events stream (`Flux<AccountEntity>`), backed by `queryGateway.subscriptionQuery(...)`. A client holding that connection open receives a push the instant `AccountEventHandler` processes the next `MoneyCreditedEvent` for that account — no polling. This is the Observer pattern surfacing at the HTTP layer: the query-side event handler *is* the publisher, and any number of open SSE connections are subscribers, matched by the `query -> query.id().equals(event.getId())` predicate.
 
-### <span style="color:hsl(281,68%,44%)">Point-to-point and scatter-gather queries</span>
+### <span style="color:hsl(339,80%,58%)">Point-to-point and scatter-gather queries</span>
 
 Two more query shapes are demonstrated side-by-side in `AccountQueryController` / `AccountQueryServiceImpl`:
 
@@ -362,15 +362,15 @@ A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entir
 ---
 
 <a id="the-saga--orchestrating-a-multi-step-business-process"></a>
-## <span style="color:hsl(288,68%,44%)">5. 🔀 The Saga — Orchestrating a Multi-Step Business Process</span>
+## <span style="color:hsl(116,80%,58%)">5. 🔀 The Saga — Orchestrating a Multi-Step Business Process</span>
 
-### <span style="color:hsl(295,68%,44%)">What a Saga is, and why aggregates alone aren't enough</span>
+### <span style="color:hsl(254,80%,58%)">What a Saga is, and why aggregates alone aren't enough</span>
 
 A single Aggregate enforces consistency *within its own boundary* — one `AccountAggregate` instance, one atomic decision per command. But "open a bank account" in this domain is actually a **multi-step process spanning three separate aggregates in three separate services**: create/activate the account, issue a debit card, issue a cheque book, then mark the account complete. No single aggregate can hold a lock across all of that, and forcing it to would destroy the whole point of decomposing into independent services.
 
 A **Saga** is Axon's answer: a stateful process manager that listens to a sequence of events, and in response to each, sends the *next* command in the sequence — while remembering enough state (via **associations**, described below) to know which in-flight process a given event belongs to. If any step fails, the saga is responsible for issuing **compensating commands** that undo the effects of the steps that already succeeded — there is no distributed transaction/2PC here, only "forward, forward, forward, and if something breaks, backward."
 
-### <span style="color:hsl(302,68%,44%)">`AccountManagementSagaOrchestrator` step by step</span>
+### <span style="color:hsl(31,80%,58%)">`AccountManagementSagaOrchestrator` step by step</span>
 
 `axon-saga-service/src/main/java/com/learning/axon/saga/saga/AccountManagementSagaOrchestrator.java` is annotated `@Saga` and holds a single (transient, `@Autowired`) `CommandGateway` — transient because Axon serializes saga state between invocations, and a Spring-managed gateway bean is neither serializable nor something that should be re-created from a snapshot; it's re-injected by Spring on every invocation instead.
 
@@ -384,7 +384,7 @@ A **Saga** is Axon's answer: a stateful process manager that listens to a sequen
 
 This association-property chaining is the crux of saga design in Axon: each step associates the saga with a **new identifier introduced by that step**, so that the event produced by the *next* aggregate (which has no idea a saga exists) can still be routed back to the correct in-flight saga instance purely by matching field values. `AccountManagementSagaOrchestratorTest` confirms the first and last transitions directly: *"should dispatch IssueDebitCardCommand when AccountActivatedEvent is received"* and *"should end saga when AccountUpdatedEvent is received after account is activated"*.
 
-### <span style="color:hsl(309,68%,44%)">Sequence diagram — the full happy-path saga</span>
+### <span style="color:hsl(169,80%,58%)">Sequence diagram — the full happy-path saga</span>
 
 ```mermaid
 sequenceDiagram
@@ -430,14 +430,14 @@ sequenceDiagram
     end
 ```
 
-### <span style="color:hsl(316,68%,44%)">Compensation, not two-phase commit</span>
+### <span style="color:hsl(306,80%,58%)">Compensation, not two-phase commit</span>
 
 Notice what does *not* happen anywhere in this flow: there is no distributed lock, no cross-service transaction coordinator, no rollback of a database transaction spanning services. Each aggregate commits its own event(s) independently and immediately. If a later step fails, the saga's only tool is to **issue new commands** (`CancelIssuedChequeBookCommand`, `CancelIssuedDebitCardCommand`, `CancelAccountUpdateCommand`) that ask earlier aggregates to record a compensating fact. Every one of those compensating actions is itself just another event in that aggregate's event store — fully auditable, exactly like the forward-path events. This is the defining trade-off of the Saga pattern: you give up atomicity across the whole process in exchange for independently scalable, independently deployable services, and you get eventual consistency plus an audit trail instead.
 
 ---
 
 <a id="axon-shared--the-contract-between-services"></a>
-## <span style="color:hsl(323,68%,44%)">6. 🌐 axon-shared — The Contract Between Services</span>
+## <span style="color:hsl(84,80%,58%)">6. 🌐 axon-shared — The Contract Between Services</span>
 
 Every service above depends on `axon-shared` (a plain library JAR — its Spring Boot Maven plugin repackage step is explicitly skipped, since it's a dependency, not a runnable service). It contains **no business logic**, only the message vocabulary that lets independently-deployed services agree on what a `CreateAccountCommand` or a `MoneyCreditedEvent` looks like on the wire:
 
@@ -456,7 +456,7 @@ Because commands and events are serialized (Jackson) and sent across process bou
 ---
 
 <a id="modules"></a>
-## <span style="color:hsl(330,68%,44%)">7. 🏗️ Modules</span>
+## <span style="color:hsl(221,80%,58%)">7. 🏗️ Modules</span>
 
 | Module                     | Role                                                                                                  | Port |
 |----------------------------|-------------------------------------------------------------------------------------------------------|------|
@@ -470,7 +470,7 @@ Because commands and events are serialized (Jackson) and sent across process bou
 ---
 
 <a id="gof-design-patterns"></a>
-## <span style="color:hsl(337,68%,44%)">8. 🏗️ GoF Design Patterns</span>
+## <span style="color:hsl(359,80%,58%)">8. 🏗️ GoF Design Patterns</span>
 
 | Pattern                     | Category   | Where Used                                                                                                                   |
 |-----------------------------|------------|------------------------------------------------------------------------------------------------------------------------------|
@@ -486,7 +486,7 @@ Because commands and events are serialized (Jackson) and sent across process bou
 ---
 
 <a id="tech-stack"></a>
-## <span style="color:hsl(345,68%,44%)">9. 🧰 Tech Stack</span>
+## <span style="color:hsl(136,80%,58%)">9. 🧰 Tech Stack</span>
 
 | Technology           | Version     |
 |----------------------|-------------|
@@ -506,9 +506,9 @@ Because commands and events are serialized (Jackson) and sent across process bou
 ---
 
 <a id="quick-start"></a>
-## <span style="color:hsl(352,68%,44%)">10. 🚀 Quick Start</span>
+## <span style="color:hsl(274,80%,58%)">10. 🚀 Quick Start</span>
 
-### <span style="color:hsl(359,68%,44%)">1. Start Infrastructure (Docker)</span>
+### <span style="color:hsl(51,80%,50%)">1. Start Infrastructure (Docker)</span>
 
 ```bash
 # From the project root — starts PostgreSQL + RabbitMQ
@@ -525,7 +525,7 @@ docker compose --profile monitoring up -d
 | Prometheus  | http://localhost:9090                  |
 | Grafana     | http://localhost:3000 (admin / admin)  |
 
-### <span style="color:hsl(6,68%,44%)">2. Build & Run</span>
+### <span style="color:hsl(189,80%,58%)">2. Build & Run</span>
 
 ```bash
 # Build all modules
@@ -552,7 +552,7 @@ cd axon-cheque-book-service
 mvn spring-boot:run
 ```
 
-### <span style="color:hsl(13,68%,44%)">3. Run Tests</span>
+### <span style="color:hsl(326,80%,58%)">3. Run Tests</span>
 
 ```bash
 mvn test
@@ -566,9 +566,9 @@ mvn test
 ---
 
 <a id="api-reference-command-service--port-8080"></a>
-## <span style="color:hsl(20,68%,44%)">11. 📚 API Reference (Command Service — port 8080)</span>
+## <span style="color:hsl(104,80%,58%)">11. 📚 API Reference (Command Service — port 8080)</span>
 
-### <span style="color:hsl(27,68%,44%)">Create Account</span>
+### <span style="color:hsl(241,80%,58%)">Create Account</span>
 ```http
 POST /bank-accounts
 Content-Type: application/json
@@ -579,7 +579,7 @@ Content-Type: application/json
 }
 ```
 
-### <span style="color:hsl(34,68%,44%)">Credit Money</span>
+### <span style="color:hsl(19,80%,58%)">Credit Money</span>
 ```http
 PUT /bank-accounts/credits/{accountId}
 Content-Type: application/json
@@ -590,7 +590,7 @@ Content-Type: application/json
 }
 ```
 
-### <span style="color:hsl(41,68%,32%)">Debit Money</span>
+### <span style="color:hsl(156,80%,58%)">Debit Money</span>
 ```http
 PUT /bank-accounts/debits/{accountId}
 Content-Type: application/json
@@ -601,37 +601,37 @@ Content-Type: application/json
 }
 ```
 
-### <span style="color:hsl(48,68%,32%)">List Events (from Axon Event Store)</span>
+### <span style="color:hsl(294,80%,58%)">List Events (from Axon Event Store)</span>
 ```http
 GET /bank-accounts/{accountId}/events
 ```
 
-### <span style="color:hsl(55,68%,32%)">Trigger Replay</span>
+### <span style="color:hsl(71,80%,58%)">Trigger Replay</span>
 ```http
 POST /bank-accounts/replay
 ```
 
 ---
 
-### <span style="color:hsl(62,68%,32%)">API Reference (Query Service — port 8085)</span>
+### <span style="color:hsl(209,80%,58%)">API Reference (Query Service — port 8085)</span>
 
-### <span style="color:hsl(69,68%,32%)">Get Account (direct JPA)</span>
+### <span style="color:hsl(346,80%,58%)">Get Account (direct JPA)</span>
 ```http
 GET /bank-accounts/{accountId}
 ```
 
-### <span style="color:hsl(76,68%,32%)">Get Account (Axon point-to-point query)</span>
+### <span style="color:hsl(124,80%,58%)">Get Account (Axon point-to-point query)</span>
 ```http
 GET /bank-accounts/{accountId}/details
 ```
 
-### <span style="color:hsl(83,68%,32%)">Real-time Credit Notifications (SSE / subscription query)</span>
+### <span style="color:hsl(261,80%,58%)">Real-time Credit Notifications (SSE / subscription query)</span>
 ```http
 GET /bank-accounts/notify/credit/{accountId}
 Accept: text/event-stream
 ```
 
-### <span style="color:hsl(90,68%,32%)">Real-time Debit Notifications (SSE)</span>
+### <span style="color:hsl(39,80%,58%)">Real-time Debit Notifications (SSE)</span>
 ```http
 GET /bank-accounts/notify/debit/{accountId}
 Accept: text/event-stream
@@ -639,9 +639,9 @@ Accept: text/event-stream
 
 ---
 
-### <span style="color:hsl(97,68%,32%)">API Reference (Saga Service — port 8082)</span>
+### <span style="color:hsl(176,80%,58%)">API Reference (Saga Service — port 8082)</span>
 
-### <span style="color:hsl(105,68%,32%)">Create Account (triggers full saga)</span>
+### <span style="color:hsl(314,80%,58%)">Create Account (triggers full saga)</span>
 ```http
 POST /bank-accounts
 Content-Type: application/json
@@ -655,7 +655,7 @@ Content-Type: application/json
 ---
 
 <a id="axon-concepts-demonstrated"></a>
-## <span style="color:hsl(112,68%,32%)">12. 💡 Axon Concepts Demonstrated</span>
+## <span style="color:hsl(91,80%,58%)">12. 💡 Axon Concepts Demonstrated</span>
 
 | Concept                            | Module                                        |
 |------------------------------------|-----------------------------------------------|
@@ -674,7 +674,7 @@ Content-Type: application/json
 ---
 
 <a id="monitoring"></a>
-## <span style="color:hsl(119,68%,32%)">13. 📈 Monitoring</span>
+## <span style="color:hsl(229,80%,58%)">13. 📈 Monitoring</span>
 
 | Service              | URL                                  |
 |----------------------|--------------------------------------|
@@ -690,7 +690,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 ---
 
 <a id="insomnia-collection"></a>
-## <span style="color:hsl(126,68%,32%)">14. 🤝 Insomnia Collection</span>
+## <span style="color:hsl(6,80%,58%)">14. 🤝 Insomnia Collection</span>
 
 <ul>
 
@@ -702,7 +702,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 ---
 
 <a id="best-practices-applied"></a>
-## <span style="color:hsl(133,68%,32%)">15. ✅ Best Practices Applied</span>
+## <span style="color:hsl(144,80%,58%)">15. ✅ Best Practices Applied</span>
 
 | Practice                   | Detail                                                                                                                                         |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -725,7 +725,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 | **@ResetHandler**          | `onReset()` in aggregate clears state before event replay                                                                                      |
 | **Dead-letter queue**      | *Not implemented.* Axon supports a JPA-backed DLQ via `deadLetterQueueProviderConfigurerModule`; this repo doesn't wire it up — tracking-processor failures currently just log and retry per Axon's default behavior. Left as a follow-up.                |
 
-### <span style="color:hsl(140,68%,32%)">Known Compatibility Note</span>
+### <span style="color:hsl(281,80%,58%)">Known Compatibility Note</span>
 
 <ul>
 
@@ -740,7 +740,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 ---
 
 <a id="testing-saga-rollback"></a>
-## <span style="color:hsl(147,68%,32%)">16. 🧪 Testing Saga Rollback</span>
+## <span style="color:hsl(59,80%,50%)">16. 🧪 Testing Saga Rollback</span>
 
 To trigger a saga rollback in the cheque-book service, set `failure = true` in `ChequeBookAggregate`:
 
@@ -761,7 +761,7 @@ private boolean failure = true; // simulate failure
 ---
 
 <a id="ecosystem-status"></a>
-## <span style="color:hsl(154,68%,36%)">17. 🏷️ Ecosystem status (July 2026)</span>
+## <span style="color:hsl(196,80%,58%)">17. 🏷️ Ecosystem status (July 2026)</span>
 
 <ul>
 

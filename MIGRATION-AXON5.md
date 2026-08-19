@@ -1,4 +1,4 @@
-# <span style="color:hsl(60,68%,32%)">Axon 5 migration — blocked, evidence and recommendation</span>
+# <span style="color:hsl(60,80%,50%)">Axon 5 migration — blocked, evidence and recommendation</span>
 
 **Verdict: do not migrate yet.** As of 2026-07-12, Axon Framework 5's Spring Boot
 integration and AMQP extension are not published as stable (or even milestone) artifacts
@@ -7,7 +7,7 @@ without dropping AMQP-based cross-service event distribution and hand-rolling Sp
 wiring against a pre-release milestone. Main branch is untouched; this document lives only
 on `axon5-migration`.
 
-## <span style="color:hsl(120,68%,32%)">What was checked</span>
+## <span style="color:hsl(198,80%,58%)">What was checked</span>
 
 Queried Maven Central's search API directly (`search.maven.org/solrsearch`) for every
 artifact this project depends on, rather than trusting blog-post version numbers:
@@ -35,7 +35,7 @@ referencing "Axon and Axoniq Framework — Release 5.2.0". That post may describ
 **Axon Server** product release train or a not-yet-mirrored-to-Central build — either way,
 `mvn` cannot resolve it today.
 
-## <span style="color:hsl(180,68%,36%)">Why this blocks *this* repository specifically</span>
+## <span style="color:hsl(335,80%,58%)">Why this blocks *this* repository specifically</span>
 
 - `axon-command-service`, `axon-query-service`, `axon-saga-service`, `axon-debit-card-service`,
   `axon-cheque-book-service` are all Spring Boot apps wired via `axon-spring-boot-starter` —
@@ -49,7 +49,7 @@ referencing "Axon and Axoniq Framework — Release 5.2.0". That post may describ
   (e.g. hand-rolled Spring AMQP listeners re-publishing into Axon 5's event bus — a
   substantial rewrite, not a version bump).
 
-## <span style="color:hsl(240,68%,44%)">What *is* real about Axon 5</span>
+## <span style="color:hsl(113,80%,58%)">What *is* real about Axon 5</span>
 
 - The core event-sourcing/messaging API redesign (dynamic consistency boundaries via
   `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors) is real and
@@ -60,7 +60,7 @@ referencing "Axon and Axoniq Framework — Release 5.2.0". That post may describ
   want to prototype the new Aggregate/EventStoreTransaction API in isolation — but that's
   a toy exercise, not a path to migrating this repo's five Spring Boot services.
 
-## <span style="color:hsl(300,68%,44%)">Recommendation</span>
+## <span style="color:hsl(250,80%,58%)">Recommendation</span>
 
 1. **Keep this repo on Axon 4.13.1** until AxonIQ publishes a 5.x GA (or at least a
    release candidate) of both `axon-spring-boot-starter`'s successor and the AMQP
@@ -78,7 +78,7 @@ referencing "Axon and Axoniq Framework — Release 5.2.0". That post may describ
    `org.axonframework.extensions.amqp:axon-amqp` both show a real (non-milestone) 5.x
    version.
 
-## <span style="color:hsl(0,68%,44%)">Further reading</span>
+## <span style="color:hsl(28,80%,58%)">Further reading</span>
 
 - [Axon Framework 5 Migration Guide](https://docs.axoniq.io/axon-framework-reference/5.0/migration/)
 - [Prerequisites and system requirements](https://docs.axoniq.io/axon-framework-reference/5.0/migration/prerequisites/)
