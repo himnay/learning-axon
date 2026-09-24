@@ -19,7 +19,7 @@ import org.axonframework.spring.stereotype.Aggregate;
 /**
  * GoF: Command — receives commands and applies domain events.
  * GoF: Observer — via EventSourcingHandler methods that react to stored events.
- * GoF: Factory — {@code accountAggregateRepository} bean (AxonSnapshotConfig) creates instances.
+ * GoF: Factory — Axon's auto-configured event-sourcing repository re-creates instances from events/snapshots.
  *
  * <p>Snapshot threshold configured in {@code AxonSnapshotConfig} controls when a snapshot is taken.
  */
@@ -27,7 +27,7 @@ import org.axonframework.spring.stereotype.Aggregate;
 @Slf4j
 @NoArgsConstructor
 @ProcessingGroup("account_tep_group")
-@Aggregate(repository = "accountAggregateRepository")
+@Aggregate(snapshotTriggerDefinition = "accountSnapshotTrigger", cache = "eventCache")
 public class AccountAggregate {
 
     @AggregateIdentifier

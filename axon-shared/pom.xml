@@ -46,5 +46,11 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
+        <!-- Axon 4's JacksonSerializer is Jackson 2 based and registers JavaTimeModule;
+             Boot 4 itself ships Jackson 3 (tools.jackson), so this must be explicit. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
     </dependencies>
 </project>

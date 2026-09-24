@@ -1,9 +1,9 @@
 spring:
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration
   datasource:
-    url: jdbc:h2:mem:testcommanddb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    url: jdbc:h2:mem:testcommanddb;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -16,9 +16,9 @@ axon:
   axonserver:
     enabled: false
   serializer:
-    general: xstream
-    events: xstream
-    messages: xstream
+    general: jackson
+    events: jackson
+    messages: jackson
   snapshot:
     threshold:
       limit: 3

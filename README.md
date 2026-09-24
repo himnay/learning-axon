@@ -2,7 +2,7 @@
 
 <img src="image/axoniq-logo.png" alt="AxonIQ" width="120"/>
 
-A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.1, Spring Boot 4.1.0, and Java 25. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
+A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.3, Spring Boot 4.1.1, and Java 25. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
 
 This document is a deep dive into **how** and **why** the code is built the way it is: what CQRS and Event Sourcing actually mean, how Axon implements an Aggregate, how the read side is projected, and how a Saga coordinates a multi-step, multi-service business transaction with compensation. Every code walk-through below points at real classes in this repository — nothing here is aspirational.
 
@@ -252,7 +252,7 @@ public void onHoldDeadline(String accountId) {
 }
 ```
 
-`DeadlineManagerConfig` wires a `SimpleDeadlineManager` (in-memory scheduling, not durable across restarts — a `JpaDeadlineManager` would be swapped in for production durability). This is Axon's mechanism for *time-based* compensating/follow-up logic — schedule a fact ("mark this account inactive if nothing else happens within 60 seconds") to be delivered back to the aggregate later, without an external scheduler.
+`DeadlineManagerConfig` wires a `SimpleDeadlineManager` (in-memory scheduling, not durable across restarts — `DbSchedulerDeadlineManager`, `JobRunrDeadlineManager` or `QuartzDeadlineManager` would be swapped in for production durability). This is Axon's mechanism for *time-based* compensating/follow-up logic — schedule a fact ("mark this account inactive if nothing else happens within 60 seconds") to be delivered back to the aggregate later, without an external scheduler.
 
 ### <span style="color:hsl(11,80%,58%)">Participant aggregates: `DebitCardAggregate` and `ChequeBookAggregate`</span>
 
@@ -491,10 +491,10 @@ Because commands and events are serialized (Jackson) and sent across process bou
 | Technology           | Version     |
 |----------------------|-------------|
 | Java                 | 25          |
-| Spring Boot          | 4.1.0       |
-| Spring Cloud         | 2025.1.2    |
-| Axon Framework       | 4.13.1      |
-| Axon AMQP Extension  | 4.9.0       |
+| Spring Boot          | 4.1.1       |
+| Spring Cloud         | 2025.1.3    |
+| Axon Framework       | 4.13.3      |
+| Axon AMQP Extension  | 4.12.0      |
 | Maven                | 3.9.x       |
 | H2 (embedded)        | —           |
 | PostgreSQL           | 16 (Docker) |
@@ -559,8 +559,8 @@ mvn test
 ```
 
 > **Test matrix:**
-> - **12 unit tests PASS** — `AggregateTestFixture` (command/saga/debit-card/cheque-book), Mockito (query handler)
-> - **4 integration tests SKIPPED** — `@Disabled` due to Axon 4.x `javax.persistence` vs Spring Boot 4.x `jakarta.persistence` namespace mismatch. Unit tests fully cover business logic.
+> - **11 unit tests** — `AggregateTestFixture` (command/debit-card/cheque-book), `SagaTestFixture` (saga), Mockito (query handler)
+> - **5 integration tests** — `@SpringBootTest` context loads for query and saga; command service runs real HTTP round-trips (`RANDOM_PORT` + `RestClient`: create → 201, event store read-back, validation → 400)
 > - No Docker required for any test — H2 in-memory, AMQP autoconfigure excluded.
 
 ---
@@ -710,7 +710,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 | **RFC 9457 ProblemDetail** | `GlobalExceptionHandler` in command/query services maps exceptions to structured error bodies                                                  |
 | **Validation at boundary** | `@Valid @RequestBody` + `spring-boot-starter-validation` on all incoming DTOs/records                                                          |
 | **Java records for DTOs**  | `AccountCreateRequest`, `MoneyCreditRequest`, `AccountQuery`, `MoneyCreditedNotifier`, …                                                       |
-| **No BOM for Axon 4.x**    | `axon-framework-bom` has no 4.x artifact on Maven Central; individual artifact versions declared explicitly in root pom `dependencyManagement` |
+| **Axon BOM**               | `org.axonframework:axon-bom` imported in root pom `dependencyManagement` — core modules move in lock-step; the AMQP extension is versioned separately |
 | **Jakarta namespace**      | All JPA entities use `jakarta.persistence.*` (not `javax.persistence.*`)                                                                       |
 | **Snapshot threshold**     | `EventCountSnapshotTriggerDefinition(3)` in `AxonSnapshotConfig` — avoids full event-store replay                                              |
 | **Event replay endpoint**  | `POST /bank-accounts/replay` resets and restarts the Tracking Event Processor                                                                  |
@@ -719,8 +719,7 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 | **Custom banners**         | `src/main/resources/banner.txt` per service                                                                                                    |
 | **Spring DevTools**        | `spring-boot-devtools:runtime:optional` for fast restarts in development                                                                       |
 | **Docker Compose**         | `docker/docker-compose.yml` — Axon Server, Postgres, RabbitMQ, Prometheus, Grafana                                                             |
-| **H2 for tests**           | `jdbc:h2:mem:*` with `MODE=PostgreSQL` so SQL is portable; no external infra for tests                                                         |
-| **Bytebuddy experimental** | `-Dnet.bytebuddy.experimental=true` in Surefire for Java 25 compatibility                                                                      |
+| **H2 for tests**           | `jdbc:h2:mem:*` (plain H2 mode — `MODE=PostgreSQL` breaks Axon's `BLOB` columns); no external infra for tests                                  |
 | **@Slf4j**                 | Lombok `@Slf4j` for logging — never manual `LoggerFactory.getLogger`                                                                           |
 | **@ResetHandler**          | `onReset()` in aggregate clears state before event replay                                                                                      |
 | **Dead-letter queue**      | *Not implemented.* Axon supports a JPA-backed DLQ via `deadLetterQueueProviderConfigurerModule`; this repo doesn't wire it up — tracking-processor failures currently just log and retry per Axon's default behavior. Left as a follow-up.                |
@@ -729,11 +728,10 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 
 <ul>
 
-- **Axon Framework 4.x** targets Spring Boot 2.7 / Spring 5 / `javax.persistence`
-- **Spring Boot 4.x** uses Spring 7 / `jakarta.persistence`
-- **Root cause:** The JPA event-store in Axon 4.x cannot start inside a Spring Boot 4.x context because the `EntityManagerProvider` bean injects `javax.persistence.EntityManagerFactory`, which does not exist in Spring Boot 4.x's Hibernate 7
-- **Impact:** `@SpringBootTest` integration tests are `@Disabled`; Axon unit tests (`AggregateTestFixture`, `SagaTestFixture`) work perfectly and cover all business logic
-- **Resolution path:** Upgrade to Axon 5.x or downgrade to Spring Boot 3.x
+- **Axon 4.13 runs on Spring Boot 4** — it is Jakarta-based. The old "`javax` vs `jakarta`" note was wrong.
+- **Jackson 2 vs 3:** Boot 4 ships Jackson 3 (`tools.jackson`), Axon 4's `JacksonSerializer` is Jackson 2 — `axon-shared` adds `com.fasterxml.jackson.core:jackson-databind` + `jackson-datatype-jsr310` explicitly. REST (Boot) and events (Axon) use different Jackson majors side by side.
+- **XStream:** avoid it — deprecated in Axon 4 and its security allow-list rejects domain classes (`ForbiddenClassException`). All profiles use `jackson`.
+- **Axon 5:** see [MIGRATION-AXON5.md](MIGRATION-AXON5.md) — blocked only by the missing 5.x AMQP extension.
 
 </ul>
 
@@ -761,12 +759,13 @@ private boolean failure = true; // simulate failure
 ---
 
 <a id="ecosystem-status"></a>
-## <span style="color:hsl(196,80%,58%)">17. 🏷️ Ecosystem status (July 2026)</span>
+## <span style="color:hsl(196,80%,58%)">17. 🏷️ Ecosystem status (September 2026)</span>
 
 <ul>
 
-- This repo pins **Axon Framework 4.13.1** (last 4.x line). The current major is **Axon 5** — [5.2.0 released 2026-07-09](https://discuss.axoniq.io/t/axon-and-axoniq-framework-release-5-2-0/6747) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors, exception-handler components, first-class Jakarta/Spring Boot 4 support).
-- Migrating to Axon 5 is the clean fix for the Spring Boot 4 JPA event-store incompatibility documented above.
+- This repo pins **Axon Framework 4.13.3** (maintained 4.x line) + **AMQP extension 4.12.0** (as of 2026).
+- Current major is **Axon 5** (5.3.2 GA, Spring starter at `org.axonframework.extensions.spring:axon-spring-boot-starter`) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors, new entity model).
+- Migration is blocked by the AMQP extension having no 5.x release — details in [MIGRATION-AXON5.md](MIGRATION-AXON5.md).
 - Further reading: [Axon Framework](https://www.axoniq.io/axon-framework) · [GitHub](https://github.com/AxonIQ/AxonFramework) · [Baeldung guide](https://www.baeldung.com/axon-cqrs-event-sourcing)
 
 </ul>
