@@ -1,6 +1,6 @@
 # <span style="color:hsl(161,80%,58%)">Learning Axon — CQRS + Event Sourcing + Saga</span>
 
-<img src="image/axoniq-logo.png" alt="AxonIQ" width="120"/>
+<img src="https://raw.githubusercontent.com/AxonFramework/.github/main/images/AxonFrameworkLogo-2025.png" alt="Axon Framework" width="300"/>
 
 A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.3, Spring Boot 4.1.1, and Java 25. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
 
@@ -44,6 +44,12 @@ In a conventional CRUD service, a single model (one JPA entity, one table) is us
 
 </ul>
 
+<p align="center">
+  <img src="image/cqrs-separate-stores.png" alt="CQRS: validation, commands, domain logic and persistence write to a write store, which feeds a separate read store that serves queries" width="560"/>
+</p>
+
+<p align="center"><sub>Separate write and read stores, the shape used here (event store on the command side, a JPA read model on the query side). Diagram: <a href="https://learn.microsoft.com/azure/architecture/patterns/cqrs">Azure Architecture Center — CQRS pattern</a>, CC BY 4.0.</sub></p>
+
 In this repository that split is literally two Maven modules and two Spring Boot processes: `axon-command-service` (port 8080) owns `AccountAggregate` and the event store; `axon-query-service` (port 8085) owns `AccountEntity` and a plain `account_details` JPA table. They do not share a database. They communicate only through **events** carried over RabbitMQ (see [Component Architecture](#component-architecture)).
 
 ### <span style="color:hsl(351,80%,58%)">Event Sourcing: the log *is* the truth</span>
@@ -51,6 +57,12 @@ In this repository that split is literally two Maven modules and two Spring Boot
 The command side does not persist "the current balance of account X" as a mutable row. Instead, every state transition is captured as an immutable **domain event** — `AccountCreatedEvent`, `MoneyCreditedEvent`, `MoneyDebitedEvent`, `AccountActivatedEvent`, `AccountHeldEvent` — and Axon appends these events, in order, to an **event store** (an append-only log, backed here by a JPA table on H2/PostgreSQL). The *current* state of an `AccountAggregate` is never stored directly; it is **derived** by replaying every event for that aggregate ID, in order, from the beginning of time (or from the last snapshot — see below).
 
 This gives CQRS a natural implementation for the write side: the aggregate's job is exactly "given the events that happened so far (the current state), and a new command, decide whether to accept it, and if so, what new event(s) does it produce?" That question-answering shape is precisely what an Axon `@Aggregate` class implements.
+
+<p align="center">
+  <img src="image/event-sourcing-overview.png" alt="Event sourcing: writes append events to the event store and a queue; event handlers update a read-only store and notify external systems; reads go to the read-only store" width="620"/>
+</p>
+
+<p align="center"><sub>Commands append events; handlers project them into read models and out to other systems. Diagram (vendor logo cropped): <a href="https://learn.microsoft.com/azure/architecture/patterns/event-sourcing">Azure Architecture Center — Event Sourcing pattern</a>, CC BY 4.0.</sub></p>
 
 Why pair the two patterns? Event Sourcing gives CQRS's write side a complete, replayable audit trail (a legal/regulatory plus for banking-flavored domains like this one) and gives the read side its data-in: the query service does not poll the write-side database — it reacts to the same events the aggregate produced, over the event bus, and folds them into whatever shape is convenient to query. Neither side needs to know how the other stores or renders data; the event stream is the only contract, and `axon-shared` defines that contract's vocabulary (see [axon-shared](#axon-shared--the-contract-between-services)).
 
@@ -367,6 +379,12 @@ A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entir
 ### <span style="color:hsl(254,80%,58%)">What a Saga is, and why aggregates alone aren't enough</span>
 
 A single Aggregate enforces consistency *within its own boundary* — one `AccountAggregate` instance, one atomic decision per command. But "open a bank account" in this domain is actually a **multi-step process spanning three separate aggregates in three separate services**: create/activate the account, issue a debit card, issue a cheque book, then mark the account complete. No single aggregate can hold a lock across all of that, and forcing it to would destroy the whole point of decomposing into independent services.
+
+<p align="center">
+  <img src="image/saga-overview.png" alt="Saga: a chain of services, each committing a local transaction and emitting a message or event that triggers the next" width="620"/>
+</p>
+
+<p align="center"><sub>A saga is a chain of local transactions linked by events — no distributed transaction. Diagram: <a href="https://learn.microsoft.com/azure/architecture/patterns/saga">Azure Architecture Center — Saga pattern</a>, CC BY 4.0.</sub></p>
 
 A **Saga** is Axon's answer: a stateful process manager that listens to a sequence of events, and in response to each, sends the *next* command in the sequence — while remembering enough state (via **associations**, described below) to know which in-flight process a given event belongs to. If any step fails, the saga is responsible for issuing **compensating commands** that undo the effects of the steps that already succeeded — there is no distributed transaction/2PC here, only "forward, forward, forward, and if something breaks, backward."
 
