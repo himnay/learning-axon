@@ -1,9 +1,12 @@
 services:
 
   # ── Axon Server (event store + command/query bus) ───────────────────────────
+  # Optional: every service excludes axon-server-connector and sets
+  # axon.axonserver.enabled=false, so nothing connects to it by default. It is
+  # here for running the saga across JVMs (see README, Component Architecture).
   # UI dashboard: http://localhost:8024
   axonserver:
-    image: axoniq/axonserver:latest
+    image: axoniq/axonserver:2026.1.4
     container_name: axonserver
     restart: unless-stopped
     ports:
@@ -18,7 +21,8 @@ services:
       - axon-net
 
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
-  # Used by command, query, and saga services as their JPA datasource.
+  # Optional: the services default to in-memory H2 (application.yml); the
+  # PostgreSQL driver is on their runtime classpath for pointing them here.
   postgres:
     image: postgres:17-alpine
     container_name: axon-postgres
@@ -41,10 +45,14 @@ services:
 
   # ── RabbitMQ ─────────────────────────────────────────────────────────────────
   # AMQP event bus: command-service publishes events; query-service consumes them.
+  # The services declare the exchange, queue and binding themselves.
   # Management UI: http://localhost:15672  (guest / guest)
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:4.3-management-alpine
     container_name: axon-rabbitmq
+    # RabbitMQ names its data directory after the host name; a fixed one keeps
+    # queues and messages across container re-creation.
+    hostname: axon-rabbitmq
     restart: unless-stopped
     ports:
       - "5672:5672"     # AMQP

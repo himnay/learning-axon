@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/AxonFramework/.github/main/images/AxonFrameworkLogo-2025.png" alt="Axon Framework" width="300"/>
 
-A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.3, Spring Boot 4.1.1, and Java 27. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
+A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13 (`axon-bom` 4.13.3), Spring Boot 4.1.1, and Java 27. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
 
 This document is a deep dive into **how** and **why** the code is built the way it is: what CQRS and Event Sourcing actually mean, how Axon implements an Aggregate, how the read side is projected, and how a Saga coordinates a multi-step, multi-service business transaction with compensation. Every code walk-through below points at real classes in this repository — nothing here is aspirational.
 
@@ -103,8 +103,8 @@ flowchart TB
     CmdSvc -- "publishes domain events<br/>(AMQP producer)" --> Bus
     Bus -- "SpringAMQPMessageSource<br/>(subscribing processor)" --> QuerySvc
 
-    SagaSvc <-- "CommandGateway (in-process command bus)<br/>IssueDebitCardCommand / CancelIssuedDebitCardCommand" --> DebitSvc
-    SagaSvc <-- "CommandGateway (in-process command bus)<br/>IssueChequeBookCommand / CancelIssuedChequeBookCommand" --> ChequeSvc
+    SagaSvc <-- "CommandGateway<br/>IssueDebitCardCommand / CancelIssuedDebitCardCommand<br/>(needs a distributed command bus, see below)" --> DebitSvc
+    SagaSvc <-- "CommandGateway<br/>IssueChequeBookCommand / CancelIssuedChequeBookCommand<br/>(needs a distributed command bus, see below)" --> ChequeSvc
     DebitSvc -. "DebitCardIssuedEvent" .-> SagaSvc
     ChequeSvc -. "ChequeBookIssuedEvent" .-> SagaSvc
 
@@ -125,8 +125,8 @@ Two things are worth noting about the topology:
 
 <ul>
 
-- **`axon-command-service` and `axon-query-service` never talk directly.** They are decoupled entirely through AMQP: the command service's `axon.amqp.exchange=axon.event.sourcing.topic` publishes every applied event; the query service's `AmqpEventListener` bean wires a [`SpringAMQPMessageSource`][SpringAMQPMessageSource] to the same exchange's queue (`axon.event.sourcing.topic.queue`), and `AxonQueryConfig` forces `usingSubscribingEventProcessors()` so those AMQP messages are handled synchronously as they arrive rather than through Axon's own tracking-token mechanism (which is reserved for the command service's local [`TrackingEventProcessor`][TrackingEventProcessor], used for replay — see [The Command Side](#the-command-side--aggregates-and-event-sourcing)).
-- **`axon-saga-service`, `axon-debit-card-service`, and `axon-cheque-book-service` communicate over Axon's in-process command bus**, not AMQP — in this demo they are separate Maven modules/services conceptually, but the saga dispatches `IssueDebitCardCommand`/`IssueChequeBookCommand` through the same [`CommandGateway`][CommandGateway] abstraction used everywhere else in the codebase. (In a fully distributed deployment, this is exactly the seam where an `axon-server-connector` or another message-bus binding would be dropped in without touching any handler code — command handler routing is external to the aggregate.)
+- **`axon-command-service` and `axon-query-service` never talk directly.** They are decoupled entirely through AMQP: the command service's `axon.amqp.exchange=axon.event.sourcing.topic` publishes every applied event; the query service's `AmqpEventListener` bean wires a [`SpringAMQPMessageSource`][SpringAMQPMessageSource] to the same exchange's queue (`axon.event.sourcing.topic.queue`), and `AxonQueryConfig` forces `usingSubscribingEventProcessors()` so those AMQP messages are handled synchronously as they arrive rather than through Axon's own tracking-token mechanism (which is reserved for the command service's local [`TrackingEventProcessor`][TrackingEventProcessor], the one the replay endpoint resets — see [The Command Side](#the-command-side--aggregates-and-event-sourcing)). Both services declare the exchange, and the query service also declares its durable queue and a `#` binding, so the flow works against a fresh broker. The command service declares its [`SpringAMQPPublisher`][SpringAMQPPublisher] itself (`AmqpPublisherConfig`): the one axon-amqp 4.12 would auto-configure is silently skipped on Spring Boot 4, because its `@AutoConfigureAfter` still names Boot 3's `RabbitAutoConfiguration` package.
+- **`axon-saga-service`, `axon-debit-card-service`, and `axon-cheque-book-service` have no transport between them yet.** The saga dispatches `IssueDebitCardCommand`/`IssueChequeBookCommand` through the same [`CommandGateway`][CommandGateway] abstraction used everywhere else, but each service runs as its own process with a local command bus and its own H2 event store: every service excludes `axon-server-connector` and sets `axon.axonserver.enabled: false`. Started as five processes, the saga's first command finds no handler (`NoHandlerForCommandException`); the callback then sends the compensating `CancelIssuedDebitCardCommand`, which finds none either. The full flow, compensations included, is exercised by `AccountManagementSagaOrchestratorTest` ([`SagaTestFixture`][SagaTestFixture]). Running it across processes needs a distributed command bus and a shared event store, which is exactly what the Axon Server in `docker-compose.yml` provides: it is the seam where `axon-server-connector` drops in without touching any handler code, since command routing is external to the aggregates.
 
 </ul>
 
@@ -202,38 +202,64 @@ A debit that pushes the balance negative triggers an automatic `AccountHeldEvent
 
 ### <span style="color:hsl(319,80%,58%)">Snapshots — event sourcing's practical caveat</span>
 
-Replaying *every* event since account creation, every single time a command arrives, does not scale once an aggregate has thousands of events. Axon's answer is a **snapshot**: a serialized copy of the aggregate's fields taken every *N* events, so that loading only needs to replay the snapshot plus events since it, not the entire history. `AxonSnapshotConfig` (`axon-command-service/.../config/AxonSnapshotConfig.java`) wires this up explicitly:
+Replaying *every* event since account creation, every single time a command arrives, does not scale once an aggregate has thousands of events. Axon's answer is a **snapshot**: a serialized copy of the aggregate's fields taken every *N* events, so that loading only needs to replay the snapshot plus events since it, not the entire history. The aggregate opts in by bean name, and `AxonSnapshotConfig` (`axon-command-service/.../config/AxonSnapshotConfig.java`) provides the beans:
 
 ```java
+@Aggregate(snapshotTriggerDefinition = "accountSnapshotTrigger", cache = "eventCache")
+public class AccountAggregate { ... }
+
 @Bean
-public EventSourcingRepository<AccountAggregate> accountAggregateRepository(
-        Snapshotter snapshotter, ParameterResolverFactory parameterResolverFactory) {
-    return EventSourcingRepository.builder(AccountAggregate.class)
-            .aggregateFactory(accountAggregateFactory())
-            .eventStore(eventStore)
-            .snapshotTriggerDefinition(new EventCountSnapshotTriggerDefinition(snapshotter, snapshotThreshold))
-            .cache(eventCache())
-            .build();
+public SnapshotTriggerDefinition accountSnapshotTrigger(
+        Snapshotter snapshotter,
+        @Value("${axon.snapshot.threshold.limit:3}") int snapshotThreshold) {
+    return new EventCountSnapshotTriggerDefinition(snapshotter, snapshotThreshold);
+}
+
+@Bean
+public Cache eventCache() {
+    return new WeakReferenceCache();
 }
 ```
 
-`snapshotThreshold` defaults to `3` (`axon.snapshot.threshold.limit`) — after every 3rd event on a given `AccountAggregate` instance, Axon serializes its current state as a snapshot. The [`SpringAggregateSnapshotter`][SpringAggregateSnapshotter] does this asynchronously on a dedicated thread pool (`snapshotExecutor`, 5–10 threads) so command handling latency isn't blocked by snapshot serialization. [`SpringPrototypeAggregateFactory`][SpringPrototypeAggregateFactory] is the Factory Method that knows how to instantiate a *fresh* `AccountAggregate` (as a Spring prototype-scoped bean) before either a snapshot or event replay is folded into it — this is also why the class is annotated [`@Aggregate(repository = "accountAggregateRepository")`][Aggregate]: it points Axon at this custom-configured repository bean instead of the framework's auto-configured default.
+`snapshotThreshold` defaults to `3` (`axon.snapshot.threshold.limit`): once 3 events have been sourced or applied on an `AccountAggregate` since its last snapshot, Axon stores a new snapshot after the unit of work commits. Axon's Spring Boot auto-configuration builds the event-sourcing repository and the [`SpringAggregateSnapshotter`][SpringAggregateSnapshotter]; the `@Aggregate` class is a Spring prototype bean, and [`SpringPrototypeAggregateFactory`][SpringPrototypeAggregateFactory] is the Factory Method that creates a *fresh* `AccountAggregate` before a snapshot or event replay is folded into it. The [`WeakReferenceCache`][WeakReferenceCache] keeps recently used aggregates in memory, so a hot account is often not loaded at all.
+
+One consequence shows up in the debugging endpoint: [`EventStore.readEvents(id)`][EventStore] starts from the latest snapshot, and would return the aggregate's state in place of the events before it. `GET /bank-accounts/{accountId}/events` therefore reads `readEvents(id, 0)`, the stored events from sequence 0, and always lists the full history.
 
 ### <span style="color:hsl(96,80%,58%)">Replay and the Tracking Event Processor</span>
 
-`AccountAggregate` is annotated [`@ProcessingGroup("account_tep_group")`][ProcessingGroup], which puts its [`@EventSourcingHandler`][EventSourcingHandler] invocations (when Axon replays for other purposes, e.g. rebuilding) under a named **Tracking Event Processor** — a processor that tracks its own position (a token) in the event stream and can be paused, reset, and restarted independently of the rest of the application. `AccountCommandController` exposes this directly:
+Aggregates are not event processors: their [`@EventSourcingHandler`][EventSourcingHandler] methods only run while Axon sources one aggregate instance, so there is nothing to "replay" into them. Replay belongs to a projection fed by a **Tracking Event Processor**: a processor that tracks its own position (a token) in the event stream and can be paused, reset, and restarted independently of the rest of the application. The command service has a small one, `AccountActivityProjection`, which counts the stored events per account in memory and sits in processing group `account_tep_group`:
+
+```java
+@Component
+@ProcessingGroup(AccountActivityProjection.PROCESSING_GROUP)   // "account_tep_group"
+public class AccountActivityProjection {
+
+    @EventHandler
+    public void on(BaseEvent<String> event) {
+        eventCounts.merge(event.getId(), 1L, Long::sum);
+    }
+
+    @ResetHandler
+    public void onReset() {
+        eventCounts.clear();
+    }
+}
+```
+
+`AccountCommandController` exposes the processor directly:
 
 ```java
 @PostMapping("/replay")
 public ResponseEntity<String> replay() {
-    eventProcessingConfiguration
-            .eventProcessorByProcessingGroup("account_tep_group", TrackingEventProcessor.class)
-            .ifPresent(tep -> { tep.shutDown(); tep.resetTokens(); tep.start(); });
+    TrackingEventProcessor tep = trackingProcessor();   // processor of "account_tep_group"
+    tep.shutDown();
+    tep.resetTokens();
+    tep.start();
     return ResponseEntity.ok("Replay triggered");
 }
 ```
 
-Calling `POST /bank-accounts/replay` shuts the processor down, resets its tracking token to the beginning, and restarts it — forcing every event in the store to be re-delivered to `@EventSourcingHandler`/[`@ResetHandler`][ResetHandler] methods in that processing group. `AccountAggregate.onReset()` (annotated `@ResetHandler`) is the hook fired immediately before replay starts, used here just to log intent, but it's the place any in-memory/derived state would be cleared before Axon re-folds history into it. This is a genuinely different mechanism from the query side's AMQP-driven `usingSubscribingEventProcessors()` (see next section) — replay/reset semantics are a Tracking Event Processor feature specifically.
+Calling `POST /bank-accounts/replay` shuts the processor down, resets its tracking token to the start of the event store, and restarts it. Axon first calls the [`@ResetHandler`][ResetHandler] (`onReset()` clears the counts), then re-delivers every stored event to the projection's [`@EventHandler`][EventHandler]. `GET /bank-accounts/{accountId}/activity` shows the rebuilt count, and `GET /bank-accounts/status` shows the processor's per-segment status (position, caught up, replaying). Without the reset handler every replay would double the counts; `CommandServiceIntegrationTest` checks that it does not. This is a genuinely different mechanism from the query side's AMQP-driven `usingSubscribingEventProcessors()` (see next section) — replay/reset semantics are a Tracking Event Processor feature specifically.
 
 ### <span style="color:hsl(234,80%,58%)">The saga-side `AccountAggregate` is a different, simpler aggregate</span>
 
@@ -272,7 +298,7 @@ Both are small, focused aggregates that exist purely to be commanded by the saga
 
 <ul>
 
-- `DebitCardAggregate` (`axon-debit-card-service`) — its constructor handles `IssueDebitCardCommand` and applies `DebitCardIssuedEvent`; a second constructor handles `CancelIssuedDebitCardCommand`, the compensating action for saga rollback. Verified by `DebitCardAggregateTest`: *"should publish DebitCardIssuedEvent when IssueDebitCardCommand is received"*.
+- `DebitCardAggregate` (`axon-debit-card-service`) — its constructor handles `IssueDebitCardCommand` and applies `DebitCardIssuedEvent`; a second constructor handles `CancelIssuedDebitCardCommand`, the compensating action for saga rollback. That handler only logs: it applies no cancellation event, so a cancelled card is not recorded in the event store. Verified by `DebitCardAggregateTest`: *"should publish DebitCardIssuedEvent when IssueDebitCardCommand is received"*.
 - `ChequeBookAggregate` (`axon-cheque-book-service`) — same shape, but carries a `failure` boolean field used purely to demonstrate saga rollback on demand:
 
 </ul>
@@ -289,7 +315,7 @@ protected void on(ChequeBookIssuedEvent event) {
 }
 ```
 
-Setting `failure = true` and restarting the service causes the event-sourcing handler itself to throw *after* the event would otherwise have been applied, which is enough to make the command fail from the saga's perspective and trigger the compensating chain described in [The Saga](#the-saga--orchestrating-a-multi-step-business-process). `ChequeBookAggregateTest` covers the happy path: *"should publish ChequeBookIssuedEvent when IssueChequeBookCommand is received"*.
+Setting `failure = true` and restarting the service causes the event-sourcing handler itself to throw *after* the event would otherwise have been applied, which is enough to make the command fail from the saga's perspective and trigger the compensating chain described in [The Saga](#the-saga--orchestrating-a-multi-step-business-process). `ChequeBookAggregateTest` covers the happy path: *"should publish ChequeBookIssuedEvent when IssueChequeBookCommand is received"*. Like the debit card, the `CancelIssuedChequeBookCommand` constructor handler only logs.
 
 ---
 
@@ -347,7 +373,7 @@ public void on(AccountCreatedEvent event) {
 
 ### <span style="color:hsl(201,80%,58%)">Real-time updates: subscription queries</span>
 
-`MoneyCreditedEvent`'s handler does one more thing beyond saving the entity:
+`MoneyCreditedEvent`'s handler does one more thing beyond saving the entity (and `MoneyDebitedEvent`'s does the same for `MoneyDebitNotifier` subscribers, which feeds `/notify/debit/{accountId}`):
 
 ```java
 queryUpdateEmitter.emit(
@@ -356,7 +382,7 @@ queryUpdateEmitter.emit(
         entity);
 ```
 
-This is Axon's **subscription query** mechanism: `AccountQueryController.subscribeToCredits()` exposes `GET /bank-accounts/notify/credit/{accountId}` as a Server-Sent-Events stream ([`Flux<AccountEntity>`][Flux]), backed by `queryGateway.subscriptionQuery(...)`. A client holding that connection open receives a push the instant `AccountEventHandler` processes the next `MoneyCreditedEvent` for that account — no polling. This is the Observer pattern surfacing at the HTTP layer: the query-side event handler *is* the publisher, and any number of open SSE connections are subscribers, matched by the `query -> query.id().equals(event.getId())` predicate.
+This is Axon's **subscription query** mechanism: `AccountQueryController.subscribeToCredits()` exposes `GET /bank-accounts/notify/credit/{accountId}` as a Server-Sent-Events stream ([`Flux<AccountEntity>`][Flux]), backed by `queryGateway.subscriptionQuery(...)`, whose initial result is the subscribed account. A client holding that connection open receives a push the instant `AccountEventHandler` processes the next `MoneyCreditedEvent` for that account — no polling. This is the Observer pattern surfacing at the HTTP layer: the query-side event handler *is* the publisher, and any number of open SSE connections are subscribers, matched by the `query -> query.id().equals(event.getId())` predicate.
 
 ### <span style="color:hsl(339,80%,58%)">Point-to-point and scatter-gather queries</span>
 
@@ -365,11 +391,11 @@ Two more query shapes are demonstrated side-by-side in `AccountQueryController` 
 <ul>
 
 - **Point-to-point**: `GET /bank-accounts/{accountId}/details` → `queryGateway.query(new AccountQuery(accountId), ...)` → routed to exactly one [`@QueryHandler`][QueryHandler] (`AccountQueryServiceImpl.getAccountDetails`). Ordinary request/response.
-- **Scatter-gather**: `GET /bank-accounts/scatter/{accountId}` → `queryBus.scatterGather(query, 10, TimeUnit.SECONDS)` broadcasts to *every* `@QueryHandler(queryName = "scatter-gather")` registered (there are two here — one in `AccountEventHandler`, one in `AccountQueryServiceImpl` — each answering independently) and collects all responses within a timeout window. It's a fan-out/fan-in query, useful when multiple read models could answer the same question and you want to compare or merge results.
+- **Scatter-gather**: `GET /bank-accounts/scatter/{accountId}` → `queryBus.scatterGather(query, 10, TimeUnit.SECONDS)` broadcasts to *every* `@QueryHandler(queryName = "scatter-gather")` registered (there are two here — `AccountQueryServiceImpl` returns the stored account, `AccountEventHandler` a copy with 10 added to the balance, so the two answers differ) and collects all responses within a timeout window. It's a fan-out/fan-in query, useful when multiple read models could answer the same question and you want to compare or merge results.
 
 </ul>
 
-A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entirely and calls the JPA repository directly — included deliberately to contrast "ask through the CQRS query infrastructure" against "just read the database", since both are legitimate depending on whether you need query-bus features (routing, subscriptions, interceptors) or not.
+A fourth path, `GET /bank-accounts/{accountId}`, bypasses Axon's query bus entirely (it and `/details` answer 404 for an unknown account) and calls the JPA repository directly — included deliberately to contrast "ask through the CQRS query infrastructure" against "just read the database", since both are legitimate depending on whether you need query-bus features (routing, subscriptions, interceptors) or not.
 
 ---
 
@@ -400,7 +426,7 @@ A **Saga** is Axon's answer: a stateful process manager that listens to a sequen
 
 **Step 4 — end the saga.** `@SagaEventHandler(associationProperty = "id")` on `handle(AccountUpdatedEvent event)`: calls `SagaLifecycle.end()`, deregistering the saga instance — Axon's saga repository will no longer route events to it.
 
-This association-property chaining is the crux of saga design in Axon: each step associates the saga with a **new identifier introduced by that step**, so that the event produced by the *next* aggregate (which has no idea a saga exists) can still be routed back to the correct in-flight saga instance purely by matching field values. `AccountManagementSagaOrchestratorTest` confirms the first and last transitions directly: *"should dispatch IssueDebitCardCommand when AccountActivatedEvent is received"* and *"should end saga when AccountUpdatedEvent is received after account is activated"*.
+This association-property chaining is the crux of saga design in Axon: each step associates the saga with a **new identifier introduced by that step**, so that the event produced by the *next* aggregate (which has no idea a saga exists) can still be routed back to the correct in-flight saga instance purely by matching field values. `AccountManagementSagaOrchestratorTest` walks every step with [`SagaTestFixture`][SagaTestFixture]: the debit card is issued on activation, the cheque book once *this saga's* card is issued, the account is completed once its cheque book is issued, and the saga ends on `AccountUpdatedEvent`. It also fails a participant on purpose (a callback behavior that throws for one command type) and checks the compensations: a failed cheque book sends `CancelIssuedChequeBookCommand` and `CancelIssuedDebitCardCommand`, and a failed debit card sends `CancelIssuedDebitCardCommand`.
 
 ### <span style="color:hsl(169,80%,58%)">Sequence diagram — the full happy-path saga</span>
 
@@ -444,13 +470,13 @@ sequenceDiagram
         Note over Saga: rollback triggered
         Saga->>ChequeAgg: CancelIssuedChequeBookCommand
         Saga->>DebitAgg: CancelIssuedDebitCardCommand
-        Note over Saga: compensating commands logged<br/>to each aggregate's event store
+        Note over Saga: compensating commands dispatched<br/>(the participants only log them)
     end
 ```
 
 ### <span style="color:hsl(306,80%,58%)">Compensation, not two-phase commit</span>
 
-Notice what does *not* happen anywhere in this flow: there is no distributed lock, no cross-service transaction coordinator, no rollback of a database transaction spanning services. Each aggregate commits its own event(s) independently and immediately. If a later step fails, the saga's only tool is to **issue new commands** (`CancelIssuedChequeBookCommand`, `CancelIssuedDebitCardCommand`, `CancelAccountUpdateCommand`) that ask earlier aggregates to record a compensating fact. Every one of those compensating actions is itself just another event in that aggregate's event store — fully auditable, exactly like the forward-path events. This is the defining trade-off of the Saga pattern: you give up atomicity across the whole process in exchange for independently scalable, independently deployable services, and you get eventual consistency plus an audit trail instead.
+Notice what does *not* happen anywhere in this flow: there is no distributed lock, no cross-service transaction coordinator, no rollback of a database transaction spanning services. Each aggregate commits its own event(s) independently and immediately. If a later step fails, the saga's only tool is to **issue new commands** (`CancelIssuedChequeBookCommand`, `CancelIssuedDebitCardCommand`, `CancelAccountUpdateCommand`) that ask earlier aggregates to record a compensating fact. In a complete implementation each compensation is itself another event in that aggregate's store (a `DebitCardCancelledEvent`, say), as auditable as the forward-path events. In this demo the cancel handlers stop at a log line, so the rollback shows in the logs and in the fixture tests, not in the event stores. This is the defining trade-off of the Saga pattern: you give up atomicity across the whole process in exchange for independently scalable, independently deployable services, and you get eventual consistency plus an audit trail instead.
 
 ---
 
@@ -469,7 +495,7 @@ Every service above depends on `axon-shared` (a plain library JAR — its Spring
 
 </ul>
 
-Because commands and events are serialized (Jackson) and sent across process boundaries (AMQP to the query service; effectively "across" a service boundary even when dispatched in-process to the saga participants), every class in `axon-shared` doubles as a versioned wire contract — changing a field here is a breaking change to every service that depends on this module, which is precisely why it's factored out into its own artifact rather than duplicated per service.
+Because commands and events are serialized (Jackson) and sent across process boundaries (AMQP to the query service; the saga's commands to its participants would cross one too, once a distributed command bus connects them), every class in `axon-shared` doubles as a versioned wire contract — changing a field here is a breaking change to every service that depends on this module, which is precisely why it's factored out into its own artifact rather than duplicated per service.
 
 ---
 
@@ -490,36 +516,36 @@ Because commands and events are serialized (Jackson) and sent across process bou
 <a id="gof-design-patterns"></a>
 ## <span style="color:hsl(359,80%,58%)">8. 🏗️ GoF Design Patterns</span>
 
-| Pattern                     | Category   | Where Used                                                                                                                                                      |
-|-----------------------------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Command**                 | Behavioral | All Axon command classes (`CreateAccountCommand`, `IssueDebitCardCommand`, …)                                                                                   |
-| **Observer**                | Behavioral | All [`@EventHandler`][EventHandler] / [`@EventSourcingHandler`][EventSourcingHandler] methods; Axon event bus                                                   |
-| **Chain of Responsibility** | Behavioral | `CommandGateway → CommandBus → CommandHandler`; Saga rollback chain                                                                                             |
-| **Template Method**         | Behavioral | Service interface + impl pattern (`AccountCommandService` / `AccountCommandServiceImpl`)                                                                        |
-| **Builder**                 | Creational | Lombok [`@Builder`][Builder] on `IssueDebitCardCommand`, `IssueChequeBookCommand`, `AccountUpdateCommand`, …                                                    |
-| **Factory Method**          | Creational | `accountAggregateRepository` bean in `AxonSnapshotConfig` (creates `AccountAggregate` via [`SpringPrototypeAggregateFactory`][SpringPrototypeAggregateFactory]) |
-| **Strategy**                | Behavioral | [`EventProcessingConfigurer.usingSubscribingEventProcessors()`][EventProcessingConfigurer] vs `usingTrackingEventProcessors()`                                  |
-| **Singleton**               | Creational | All Spring beans ([`@Service`][Service], [`@Repository`][Repository], [`@Component`][Component])                                                                |
+| Pattern                     | Category   | Where Used                                                                                                                                                                                      |
+|-----------------------------|------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Command**                 | Behavioral | All Axon command classes (`CreateAccountCommand`, `IssueDebitCardCommand`, …)                                                                                                                   |
+| **Observer**                | Behavioral | All [`@EventHandler`][EventHandler] / [`@EventSourcingHandler`][EventSourcingHandler] methods; Axon event bus                                                                                   |
+| **Chain of Responsibility** | Behavioral | `CommandGateway → CommandBus → CommandHandler`; Saga rollback chain                                                                                                                             |
+| **Template Method**         | Behavioral | Service interface + impl pattern (`AccountCommandService` / `AccountCommandServiceImpl`)                                                                                                        |
+| **Builder**                 | Creational | Lombok [`@Builder`][Builder] on `IssueDebitCardCommand`, `IssueChequeBookCommand`, `AccountUpdateCommand`, …                                                                                    |
+| **Factory Method**          | Creational | Axon's Spring auto-configuration creates `AccountAggregate` instances through [`SpringPrototypeAggregateFactory`][SpringPrototypeAggregateFactory] (the `@Aggregate` class is a prototype bean) |
+| **Strategy**                | Behavioral | [`EventProcessingConfigurer.usingSubscribingEventProcessors()`][EventProcessingConfigurer] vs `usingTrackingEventProcessors()`                                                                  |
+| **Singleton**               | Creational | All Spring beans ([`@Service`][Service], [`@Repository`][Repository], [`@Component`][Component])                                                                                                |
 
 ---
 
 <a id="tech-stack"></a>
 ## <span style="color:hsl(136,80%,58%)">9. 🧰 Tech Stack</span>
 
-| Technology           | Version     |
-|----------------------|-------------|
-| Java                 | 27          |
-| Spring Boot          | 4.1.1       |
-| Spring Cloud         | 2025.1.3    |
-| Axon Framework       | 4.13.3      |
-| Axon AMQP Extension  | 4.12.0      |
-| Maven                | 3.9.x       |
-| H2 (embedded)        | —           |
-| PostgreSQL           | 16 (Docker) |
-| RabbitMQ             | 3 (Docker)  |
-| TestContainers       | 1.21.3      |
-| JUnit                | 5           |
-| Prometheus / Grafana | latest      |
+| Technology           | Version                     |
+|----------------------|-----------------------------|
+| Java                 | 27                          |
+| Spring Boot          | 4.1.1                       |
+| Axon Framework       | 4.13.2 (`axon-bom` 4.13.3)  |
+| Axon AMQP Extension  | 4.12.0                      |
+| Maven                | 3.9.x                       |
+| H2 (embedded)        | —                           |
+| PostgreSQL           | 17 (Docker, optional)       |
+| RabbitMQ             | 4.3 (Docker)                |
+| Axon Server          | 2026.1.4 (Docker, optional) |
+| Testcontainers       | 2.0.5 (RabbitMQ module)     |
+| JUnit                | Jupiter 6                   |
+| Prometheus / Grafana | latest                      |
 
 ---
 
@@ -529,7 +555,7 @@ Because commands and events are serialized (Jackson) and sent across process bou
 ### <span style="color:hsl(51,80%,50%)">1. Start Infrastructure (Docker)</span>
 
 ```bash
-# From the project root — starts PostgreSQL + RabbitMQ
+# From the project root — starts RabbitMQ, plus Axon Server and PostgreSQL (optional: unused by default)
 docker compose up -d
 
 # Add Prometheus + Grafana (optional monitoring)
@@ -540,6 +566,7 @@ docker compose --profile monitoring up -d
 |-------------|----------------------------------------|
 | RabbitMQ UI | http://localhost:15672 (guest / guest) |
 | PostgreSQL  | localhost:5432 (axon / axon / axondb)  |
+| Axon Server | http://localhost:8024                  |
 | Prometheus  | http://localhost:9090                  |
 | Grafana     | http://localhost:3000 (admin / admin)  |
 
@@ -577,9 +604,9 @@ mvn test
 ```
 
 > **Test matrix:**
-> - **11 unit tests** — [`AggregateTestFixture`][AggregateTestFixture] (command/debit-card/cheque-book), [`SagaTestFixture`][SagaTestFixture] (saga), Mockito (query handler)
-> - **5 integration tests** — [`@SpringBootTest`][SpringBootTest] context loads for query and saga; command service runs real HTTP round-trips (`RANDOM_PORT` + [`RestClient`][RestClient]: create → 201, event store read-back, validation → 400)
-> - No Docker required for any test — H2 in-memory, AMQP autoconfigure excluded.
+> - **16 unit tests** — [`AggregateTestFixture`][AggregateTestFixture] (command/debit-card/cheque-book), [`SagaTestFixture`][SagaTestFixture] (every saga step and both compensation paths), Mockito (query handler)
+> - **14 integration tests** — [`@SpringBootTest`][SpringBootTest]: the command service over real HTTP (`RANDOM_PORT` + [`RestClient`][RestClient]: create → 201, full event history across a snapshot, replay without double counting, 404 for unknown accounts, validation → 400); the query service's read model, 404s, subscription updates and scatter-gather; the saga service's context; and two RabbitMQ round-trips (the command service publishes, the query service consumes into its read model)
+> - Docker is needed only for the two RabbitMQ tests (Testcontainers, `rabbitmq:4.3-management-alpine`; skipped without Docker). Everything else runs on in-memory H2 with RabbitMQ auto-configuration excluded.
 
 ---
 
@@ -629,6 +656,16 @@ GET /bank-accounts/{accountId}/events
 POST /bank-accounts/replay
 ```
 
+### <span style="color:hsl(186,80%,58%)">Tracking Processor Status</span>
+```http
+GET /bank-accounts/status
+```
+
+### <span style="color:hsl(323,80%,58%)">Account Activity (the replayable projection)</span>
+```http
+GET /bank-accounts/{accountId}/activity
+```
+
 ---
 
 ### <span style="color:hsl(209,80%,58%)">API Reference (Query Service — port 8085)</span>
@@ -653,6 +690,11 @@ Accept: text/event-stream
 ```http
 GET /bank-accounts/notify/debit/{accountId}
 Accept: text/event-stream
+```
+
+### <span style="color:hsl(108,80%,58%)">Scatter-Gather Query</span>
+```http
+GET /bank-accounts/scatter/{accountId}
 ```
 
 ---
@@ -694,14 +736,14 @@ Content-Type: application/json
 <a id="monitoring"></a>
 ## <span style="color:hsl(229,80%,58%)">13. 📈 Monitoring</span>
 
-| Service              | URL                                  |
-|----------------------|--------------------------------------|
-| Prometheus           | http://localhost:9090                |
-| Grafana              | http://localhost:3000 (admin/admin)  |
-| RabbitMQ UI          | http://localhost:15672 (guest/guest) |
-| Axon Server UI       | http://localhost:8024                |
-| H2 Console (command) | http://localhost:8080/h2-console     |
-| H2 Console (query)   | http://localhost:8085/h2-console     |
+| Service                   | URL                                  |
+|---------------------------|--------------------------------------|
+| Prometheus                | http://localhost:9090                |
+| Grafana                   | http://localhost:3000 (admin/admin)  |
+| RabbitMQ UI               | http://localhost:15672 (guest/guest) |
+| Axon Server UI (optional) | http://localhost:8024                |
+| H2 Console (command)      | http://localhost:8080/h2-console     |
+| H2 Console (query)        | http://localhost:8085/h2-console     |
 
 All services expose `/actuator/prometheus` for Prometheus scraping.
 
@@ -722,25 +764,25 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 <a id="best-practices-applied"></a>
 ## <span style="color:hsl(144,80%,58%)">15. ✅ Best Practices Applied</span>
 
-| Practice                   | Detail                                                                                                                                         |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Constructor injection**  | [`@RequiredArgsConstructor`][RequiredArgsConstructor] on all Spring beans. Axon Sagas use `@Autowired private transient` (Axon requirement for serializable saga state)   |
-| **RFC 9457 ProblemDetail** | `GlobalExceptionHandler` in command/query services maps exceptions to structured error bodies                                                  |
-| **Validation at boundary** | `@Valid @RequestBody` + `spring-boot-starter-validation` on all incoming DTOs/records                                                          |
-| **Java records for DTOs**  | `AccountCreateRequest`, `MoneyCreditRequest`, `AccountQuery`, `MoneyCreditedNotifier`, …                                                       |
-| **Axon BOM**               | `org.axonframework:axon-bom` imported in root pom `dependencyManagement` — core modules move in lock-step; the AMQP extension is versioned separately |
-| **Jakarta namespace**      | All JPA entities use `jakarta.persistence.*` (not `javax.persistence.*`)                                                                       |
-| **Snapshot threshold**     | [`EventCountSnapshotTriggerDefinition(3)`][EventCountSnapshotTriggerDefinition] in `AxonSnapshotConfig` — avoids full event-store replay                                              |
-| **Event replay endpoint**  | `POST /bank-accounts/replay` resets and restarts the Tracking Event Processor                                                                  |
-| **AMQP routing**           | Command service publishes to RabbitMQ exchange; query service subscribes — decouples read/write stacks                                         |
-| **Actuator + Prometheus**  | `management.endpoints.web.exposure.include=health,info,metrics,prometheus` (not `*` — no auth in front of actuator, so env/heapdump/threaddump stay off) + `micrometer-registry-prometheus:runtime` on every Boot service |
-| **Custom banners**         | `src/main/resources/banner.txt` per service                                                                                                    |
-| **Spring DevTools**        | `spring-boot-devtools:runtime:optional` for fast restarts in development                                                                       |
-| **Docker Compose**         | `docker/docker-compose.yml` — Axon Server, Postgres, RabbitMQ, Prometheus, Grafana                                                             |
-| **H2 for tests**           | `jdbc:h2:mem:*` (plain H2 mode — `MODE=PostgreSQL` breaks Axon's `BLOB` columns); no external infra for tests                                  |
-| **@Slf4j**                 | Lombok [`@Slf4j`][Slf4j] for logging — never manual [`LoggerFactory.getLogger`][LoggerFactory]                                                                           |
-| **@ResetHandler**          | `onReset()` in aggregate clears state before event replay                                                                                      |
-| **Dead-letter queue**      | *Not implemented.* Axon supports a JPA-backed DLQ via `deadLetterQueueProviderConfigurerModule`; this repo doesn't wire it up — tracking-processor failures currently just log and retry per Axon's default behavior. Left as a follow-up.                |
+| Practice                   | Detail                                                                                                                                                                                                                                                                                                                                                                                                          |
+|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Constructor injection**  | [`@RequiredArgsConstructor`][RequiredArgsConstructor] on all Spring beans. Axon Sagas use `@Autowired private transient` (Axon requirement for serializable saga state)                                                                                                                                                                                                                                         |
+| **RFC 9457 ProblemDetail** | `GlobalExceptionHandler` in command/query services maps exceptions to structured error bodies                                                                                                                                                                                                                                                                                                                   |
+| **Validation at boundary** | `@Valid @RequestBody` + `spring-boot-starter-validation` on all incoming DTOs/records                                                                                                                                                                                                                                                                                                                           |
+| **Java records for DTOs**  | `AccountCreateRequest`, `MoneyCreditRequest`, `AccountQuery`, `MoneyCreditedNotifier`, …                                                                                                                                                                                                                                                                                                                        |
+| **Axon BOM**               | `org.axonframework:axon-bom` imported in root pom `dependencyManagement` — core modules move in lock-step; the AMQP extension is versioned separately                                                                                                                                                                                                                                                           |
+| **Jakarta namespace**      | All JPA entities use `jakarta.persistence.*` (not `javax.persistence.*`)                                                                                                                                                                                                                                                                                                                                        |
+| **Snapshot threshold**     | [`EventCountSnapshotTriggerDefinition(3)`][EventCountSnapshotTriggerDefinition] in `AxonSnapshotConfig` — avoids full event-store replay                                                                                                                                                                                                                                                                        |
+| **Event replay endpoint**  | `POST /bank-accounts/replay` resets and restarts the Tracking Event Processor behind `AccountActivityProjection`                                                                                                                                                                                                                                                                                                |
+| **AMQP routing**           | Command service publishes to a RabbitMQ topic exchange; query service consumes its own durable queue — decouples read/write stacks. Each service declares what it uses                                                                                                                                                                                                                                          |
+| **Actuator + Prometheus**  | `management.endpoints.web.exposure.include=health,info,metrics,prometheus` (not `*` — no auth in front of actuator, so env/heapdump/threaddump stay off) + `micrometer-registry-prometheus:runtime` on every Boot service                                                                                                                                                                                       |
+| **Custom banners**         | `src/main/resources/banner.txt` per service                                                                                                                                                                                                                                                                                                                                                                     |
+| **Spring DevTools**        | `spring-boot-devtools:runtime:optional` for fast restarts in development                                                                                                                                                                                                                                                                                                                                        |
+| **Docker Compose**         | `docker-compose.yml` (project root) — RabbitMQ, optional Axon Server and PostgreSQL; Prometheus and Grafana under the `monitoring` profile                                                                                                                                                                                                                                                                      |
+| **H2 for tests**           | `jdbc:h2:mem:*` (plain H2 mode — `MODE=PostgreSQL` breaks Axon's `BLOB` columns); no external infra for tests                                                                                                                                                                                                                                                                                                   |
+| **@Slf4j**                 | Lombok [`@Slf4j`][Slf4j] for logging — never manual [`LoggerFactory.getLogger`][LoggerFactory]                                                                                                                                                                                                                                                                                                                  |
+| **@ResetHandler**          | `onReset()` in `AccountActivityProjection` (command side) and `AccountEventHandler` (query side) clears projection state before a replay                                                                                                                                                                                                                                                                        |
+| **Dead-letter queue**      | *Not implemented.* Axon supports a JPA-backed DLQ via `deadLetterQueueProviderConfigurerModule`; this repo doesn't wire it up. Failures are handled per processor instead: the command side's `PropagatingErrorHandler` makes the tracking processor retry a failing event with back-off, while the query side's subscribing processor uses Axon's default logging handler (log and skip). Left as a follow-up. |
 
 ### <span style="color:hsl(281,80%,58%)">Known Compatibility Note</span>
 
@@ -749,7 +791,8 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 - **Axon 4.13 runs on Spring Boot 4** — it is Jakarta-based. The old "`javax` vs `jakarta`" note was wrong.
 - **Jackson 2 vs 3:** Boot 4 ships Jackson 3 (`tools.jackson`), Axon 4's [`JacksonSerializer`][JacksonSerializer] is Jackson 2 — `axon-shared` adds `com.fasterxml.jackson.core:jackson-databind` + `jackson-datatype-jsr310` explicitly. REST (Boot) and events (Axon) use different Jackson majors side by side.
 - **XStream:** avoid it — deprecated in Axon 4 and its security allow-list rejects domain classes ([`ForbiddenClassException`][ForbiddenClassException]). All profiles use `jackson`.
-- **Axon 5:** see [MIGRATION-AXON5.md](MIGRATION-AXON5.md) — blocked only by the missing 5.x AMQP extension.
+- **axon-amqp on Boot 4:** its auto-configured `SpringAMQPPublisher` is skipped (the `@AutoConfigureAfter` names Boot 3's `RabbitAutoConfiguration` package), so `AmqpPublisherConfig` declares it.
+- **Axon 5:** see [MIGRATION-AXON5.md](MIGRATION-AXON5.md) — its core has no sagas, deadline manager or scatter-gather, and there is no 5.x AMQP extension.
 
 </ul>
 
@@ -758,7 +801,13 @@ All services expose `/actuator/prometheus` for Prometheus scraping.
 <a id="testing-saga-rollback"></a>
 ## <span style="color:hsl(59,80%,50%)">16. 🧪 Testing Saga Rollback</span>
 
-To trigger a saga rollback in the cheque-book service, set `failure = true` in `ChequeBookAggregate`:
+The rollback path is tested without any running service: `AccountManagementSagaOrchestratorTest.onChequeBookFailure_shouldCompensateBothSteps` makes `IssueChequeBookCommand` fail and checks that the saga then dispatches `CancelIssuedChequeBookCommand` and `CancelIssuedDebitCardCommand`:
+
+```bash
+mvn test -pl axon-saga-service -am -Dtest=AccountManagementSagaOrchestratorTest -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+To see it across running services, `ChequeBookAggregate` has a `failure` switch:
 
 ```java
 private boolean failure = true; // simulate failure
@@ -766,11 +815,9 @@ private boolean failure = true; // simulate failure
 
 <ul>
 
-- Restart the cheque-book service
-- Call `POST /bank-accounts` on the saga service
-- The saga will issue a debit card, then attempt to issue a cheque book (which fails)
-- Axon automatically dispatches compensating `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`
-- All compensating actions are logged and stored in the event store for full auditability
+- It only takes effect once the saga, debit-card and cheque-book services share a command bus (see [Component Architecture](#component-architecture)); as configured here, the saga's first command already finds no handler.
+- With that in place: restart the cheque-book service and call `POST /bank-accounts` on the saga service. The saga issues a debit card, the cheque book fails, and the saga dispatches `CancelIssuedChequeBookCommand` + `CancelIssuedDebitCardCommand`.
+- The participants only log the compensations; no cancellation event is stored.
 
 </ul>
 
@@ -781,9 +828,9 @@ private boolean failure = true; // simulate failure
 
 <ul>
 
-- This repo pins **Axon Framework 4.13.3** (maintained 4.x line) + **AMQP extension 4.12.0** (as of 2026).
-- Current major is **Axon 5** (5.3.2 GA, Spring starter at `org.axonframework.extensions.spring:axon-spring-boot-starter`) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, declarative handler interceptors, new entity model).
-- Migration is blocked by the AMQP extension having no 5.x release — details in [MIGRATION-AXON5.md](MIGRATION-AXON5.md).
+- This repo pins **`axon-bom` 4.13.3** (Axon Framework 4.13.2 modules, the maintained 4.x line) + **AMQP extension 4.12.0** (as of 2026).
+- Current major is **Axon 5** (5.3.2 GA, Spring starter at `org.axonframework.extensions.spring:axon-spring-boot-starter`) — a large API redesign (dynamic consistency boundaries via `EventStoreTransaction`/`AppendCondition`, an async-native `ProcessingContext`, a new entity model), without sagas, the deadline manager or scatter-gather in its core.
+- Migration is blocked by those missing pieces and by the AMQP extension having no 5.x release — details in [MIGRATION-AXON5.md](MIGRATION-AXON5.md).
 - Further reading: [Axon Framework](https://www.axoniq.io/axon-framework) · [GitHub](https://github.com/AxonIQ/AxonFramework) · [Baeldung guide](https://www.baeldung.com/axon-cqrs-event-sourcing)
 
 </ul>
@@ -795,7 +842,7 @@ private boolean failure = true; // simulate failure
 [AggregateLifecycle]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/modelling/src/main/java/org/axonframework/modelling/command/AggregateLifecycle.java
 [AggregateTestFixture]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/test/src/main/java/org/axonframework/test/aggregate/AggregateTestFixture.java
 [Autowired]: https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-beans/src/main/java/org/springframework/beans/factory/annotation/Autowired.java
-[Builder]: https://github.com/projectlombok/lombok/blob/v1.18.46/src/core/lombok/Builder.java
+[Builder]: https://github.com/projectlombok/lombok/blob/v1.18.48/src/core/lombok/Builder.java
 [CommandGateway]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/commandhandling/gateway/CommandGateway.java
 [CommandHandler]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/commandhandling/CommandHandler.java
 [Component]: https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-context/src/main/java/org/springframework/stereotype/Component.java
@@ -804,6 +851,7 @@ private boolean failure = true; // simulate failure
 [EventHandler]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/eventhandling/EventHandler.java
 [EventProcessingConfigurer]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/config/src/main/java/org/axonframework/config/EventProcessingConfigurer.java
 [EventSourcingHandler]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/eventsourcing/src/main/java/org/axonframework/eventsourcing/EventSourcingHandler.java
+[EventStore]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/eventsourcing/src/main/java/org/axonframework/eventsourcing/eventstore/EventStore.java
 [Flux]: https://github.com/reactor/reactor-core/blob/v3.7.8/reactor-core/src/main/java/reactor/core/publisher/Flux.java
 [ForbiddenClassException]: https://github.com/x-stream/xstream/blob/XSTREAM_1_4_21/xstream/src/java/com/thoughtworks/xstream/security/ForbiddenClassException.java
 [JacksonSerializer]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/serialization/json/JacksonSerializer.java
@@ -816,7 +864,7 @@ private boolean failure = true; // simulate failure
 [QueryHandler]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/queryhandling/QueryHandler.java
 [RabbitListener]: https://github.com/spring-projects/spring-amqp/blob/v4.1.1/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/annotation/RabbitListener.java
 [Repository]: https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-context/src/main/java/org/springframework/stereotype/Repository.java
-[RequiredArgsConstructor]: https://github.com/projectlombok/lombok/blob/v1.18.46/src/core/lombok/RequiredArgsConstructor.java
+[RequiredArgsConstructor]: https://github.com/projectlombok/lombok/blob/v1.18.48/src/core/lombok/RequiredArgsConstructor.java
 [ResetHandler]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/eventhandling/ResetHandler.java
 [RestClient]: https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/web/client/RestClient.java
 [Saga]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/spring/src/main/java/org/axonframework/spring/stereotype/Saga.java
@@ -825,10 +873,12 @@ private boolean failure = true; // simulate failure
 [SagaTestFixture]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/test/src/main/java/org/axonframework/test/saga/SagaTestFixture.java
 [Service]: https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-context/src/main/java/org/springframework/stereotype/Service.java
 [SimpleDeadlineManager]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/deadline/SimpleDeadlineManager.java
-[Slf4j]: https://github.com/projectlombok/lombok/blob/v1.18.46/src/core/lombok/extern/slf4j/Slf4j.java
+[Slf4j]: https://github.com/projectlombok/lombok/blob/v1.18.48/src/core/lombok/extern/slf4j/Slf4j.java
 [SpringAggregateSnapshotter]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/spring/src/main/java/org/axonframework/spring/eventsourcing/SpringAggregateSnapshotter.java
 [SpringAMQPMessageSource]: https://github.com/AxonFramework/extension-amqp/blob/axon-amqp-4.12.0/amqp/src/main/java/org/axonframework/extensions/amqp/eventhandling/spring/SpringAMQPMessageSource.java
+[SpringAMQPPublisher]: https://github.com/AxonFramework/extension-amqp/blob/axon-amqp-4.12.0/amqp/src/main/java/org/axonframework/extensions/amqp/eventhandling/spring/SpringAMQPPublisher.java
 [SpringBootTest]: https://github.com/spring-projects/spring-boot/blob/v4.1.1/core/spring-boot-test/src/main/java/org/springframework/boot/test/context/SpringBootTest.java
 [SpringPrototypeAggregateFactory]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/spring/src/main/java/org/axonframework/spring/eventsourcing/SpringPrototypeAggregateFactory.java
 [TargetAggregateIdentifier]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/modelling/src/main/java/org/axonframework/modelling/command/TargetAggregateIdentifier.java
 [TrackingEventProcessor]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/eventhandling/TrackingEventProcessor.java
+[WeakReferenceCache]: https://github.com/AxonIQ/AxonFramework/blob/axon-4.13.2/messaging/src/main/java/org/axonframework/common/caching/WeakReferenceCache.java
