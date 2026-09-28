@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/AxonFramework/.github/main/images/AxonFrameworkLogo-2025.png" alt="Axon Framework" width="300"/>
 
-A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.3, Spring Boot 4.1.1, and Java 25. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
+A multi-module Maven project demonstrating **CQRS** (Command Query Responsibility Segregation), **Event Sourcing**, and the **Saga pattern** using Axon Framework 4.13.3, Spring Boot 4.1.1, and Java 27. The domain is deliberately small — opening a bank account, crediting/debiting money, and an account-opening workflow that issues a debit card and a cheque book — so that the *architecture* stays the star of the show rather than the business logic.
 
 This document is a deep dive into **how** and **why** the code is built the way it is: what CQRS and Event Sourcing actually mean, how Axon implements an Aggregate, how the read side is projected, and how a Saga coordinates a multi-step, multi-service business transaction with compensation. Every code walk-through below points at real classes in this repository — nothing here is aspirational.
 
@@ -508,7 +508,7 @@ Because commands and events are serialized (Jackson) and sent across process bou
 
 | Technology           | Version     |
 |----------------------|-------------|
-| Java                 | 25          |
+| Java                 | 27          |
 | Spring Boot          | 4.1.1       |
 | Spring Cloud         | 2025.1.3    |
 | Axon Framework       | 4.13.3      |
