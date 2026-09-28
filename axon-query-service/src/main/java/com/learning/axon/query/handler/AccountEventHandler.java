@@ -87,22 +87,35 @@ public class AccountEventHandler {
         entity.setAccountBalance(entity.getAccountBalance() - event.getDebitAmount());
         entity.setCurrency(event.getCurrency());
         accountRepository.save(entity);
+
+        // Notify /notify/debit/{accountId} subscribers
+        queryUpdateEmitter.emit(
+                MoneyDebitNotifier.class,
+                notifier -> notifier.id().equals(event.getId()),
+                entity);
     }
 
     // ── Query handlers ────────────────────────────────────────────────────────
 
-    /** Handles. */
+    /** Initial result of the credit subscription query: the subscribed account, if it exists. */
     @QueryHandler
     public List<AccountEntity> handle(AccountDetailsQuery query) {
-        return accountRepository.findAll();
+        return accountRepository.findById(query.id()).map(List::of).orElseGet(List::of);
     }
 
-    /** Handles scatter gather. */
+    /**
+     * Second scatter-gather answer: the balance plus 10, so the two responses differ. It builds a
+     * copy, because the entity {@code findById} returns is managed and must not be modified here.
+     */
     @QueryHandler(queryName = "scatter-gather")
     public AccountEntity handleScatterGather(String accountId) {
         AccountEntity entity = accountRepository.findById(accountId).orElse(new AccountEntity());
-        entity.setAccountBalance(entity.getAccountBalance() + 10);
-        return entity;
+        return AccountEntity.builder()
+                .id(entity.getId())
+                .accountBalance(entity.getAccountBalance() + 10)
+                .currency(entity.getCurrency())
+                .status(entity.getStatus())
+                .build();
     }
 
     /** Handles. */

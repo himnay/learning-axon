@@ -5,6 +5,8 @@ import com.learning.axon.query.repository.AccountRepository;
 import com.learning.axon.shared.enums.Status;
 import com.learning.axon.shared.events.AccountCreatedEvent;
 import com.learning.axon.shared.events.MoneyCreditedEvent;
+import com.learning.axon.shared.events.MoneyDebitedEvent;
+import com.learning.axon.shared.notifiers.MoneyDebitNotifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +18,7 @@ import org.axonframework.queryhandling.QueryUpdateEmitter;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,5 +57,18 @@ class AccountEventHandlerTest {
 
         verify(accountRepository).save(existing);
         verify(queryUpdateEmitter).emit(any(), any(), any(AccountEntity.class));
+    }
+
+    @Test
+    @DisplayName("should update balance and emit a debit notification on MoneyDebitedEvent")
+    void on_moneyDebitedEvent_shouldUpdateAndEmit() {
+        var existing = AccountEntity.builder()
+                .id("acc-1").accountBalance(100.0).currency("USD").status(Status.ACTIVATED).build();
+        when(accountRepository.findById("acc-1")).thenReturn(Optional.of(existing));
+
+        handler.on(new MoneyDebitedEvent("acc-1", 30.0, "USD"));
+
+        verify(accountRepository).save(existing);
+        verify(queryUpdateEmitter).emit(eq(MoneyDebitNotifier.class), any(), eq(existing));
     }
 }

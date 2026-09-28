@@ -7,10 +7,7 @@ import com.learning.axon.shared.enums.Status;
 import com.learning.axon.shared.events.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.axonframework.commandhandling.CommandHandler;
-import org.axonframework.config.ProcessingGroup;
-import org.axonframework.eventhandling.ResetHandler;
 import org.axonframework.eventsourcing.EventSourcingHandler;
 import org.axonframework.modelling.command.AggregateIdentifier;
 import org.axonframework.modelling.command.AggregateLifecycle;
@@ -24,9 +21,7 @@ import org.axonframework.spring.stereotype.Aggregate;
  * <p>Snapshot threshold configured in {@code AxonSnapshotConfig} controls when a snapshot is taken.
  */
 @Data
-@Slf4j
 @NoArgsConstructor
-@ProcessingGroup("account_tep_group")
 @Aggregate(snapshotTriggerDefinition = "accountSnapshotTrigger", cache = "eventCache")
 public class AccountAggregate {
 
@@ -95,11 +90,5 @@ public class AccountAggregate {
     @EventSourcingHandler
     protected void on(AccountHeldEvent event) {
         this.status = event.getStatus();
-    }
-
-    /** Handles reset. */
-    @ResetHandler
-    public void onReset() {
-        log.info("Pre-reset: clearing projection state before replay starts");
     }
 }

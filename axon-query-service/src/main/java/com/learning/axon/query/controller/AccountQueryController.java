@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -46,7 +47,13 @@ public class AccountQueryController {
     @GetMapping("/{accountId}/details")
     public AccountEntity getAccountViaQuery(@PathVariable String accountId)
             throws ExecutionException, InterruptedException {
-        return queryGateway.query(new AccountQuery(accountId), ResponseTypes.instanceOf(AccountEntity.class)).get();
+        AccountEntity account = queryGateway
+                .query(new AccountQuery(accountId), ResponseTypes.instanceOf(AccountEntity.class))
+                .get();
+        if (account == null) {
+            throw new NoSuchElementException("Account [" + accountId + "] not found");
+        }
+        return account;
     }
 
     /**

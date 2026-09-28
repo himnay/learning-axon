@@ -2,6 +2,7 @@ package com.learning.axon.command.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.axonframework.commandhandling.CommandExecutionException;
+import org.axonframework.modelling.command.AggregateNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +33,17 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Validation Failed");
         problem.setType(URI.create("https://axon.example.com/errors/validation"));
+        return problem;
+    }
+
+    /** A command addressed an account that has no events: 404 rather than a generic 500. */
+    @ExceptionHandler(AggregateNotFoundException.class)
+    public ProblemDetail handleAggregateNotFound(AggregateNotFoundException ex) {
+        log.warn("Aggregate not found: {}", ex.getAggregateIdentifier());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, "Account [" + ex.getAggregateIdentifier() + "] does not exist");
+        problem.setTitle("Account Not Found");
+        problem.setType(URI.create("https://axon.example.com/errors/not-found"));
         return problem;
     }
 

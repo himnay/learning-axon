@@ -1,5 +1,6 @@
 package com.learning.axon.command.controller;
 
+import com.learning.axon.command.projection.AccountActivityProjection;
 import com.learning.axon.command.service.AccountCommandService;
 import com.learning.axon.shared.models.AccountCreateRequest;
 import com.learning.axon.shared.models.MoneyCreditRequest;
@@ -28,6 +29,7 @@ public class AccountCommandController {
 
     private final AccountCommandService accountCommandService;
     private final EventProcessingConfiguration eventProcessingConfiguration;
+    private final AccountActivityProjection accountActivityProjection;
 
     /** Creates account. */
     @PostMapping
@@ -53,27 +55,35 @@ public class AccountCommandController {
     }
 
     /**
-     * Trigger event replay for the Tracking Event Processor.
+     * Replays the event store into {@link AccountActivityProjection}: stop its Tracking Event
+     * Processor, reset the token to the start of the stream, and start it again.
      * GoF: Strategy — swaps processing strategy at runtime.
      */
     @PostMapping("/replay")
     public ResponseEntity<String> replay() {
-        eventProcessingConfiguration
-                .eventProcessorByProcessingGroup("account_tep_group", TrackingEventProcessor.class)
-                .ifPresent(tep -> {
-                    tep.shutDown();
-                    tep.resetTokens();
-                    tep.start();
-                });
+        TrackingEventProcessor tep = trackingProcessor();
+        tep.shutDown();
+        tep.resetTokens();
+        tep.start();
         return ResponseEntity.ok("Replay triggered");
     }
 
-    /** Returns the status. */
+    /** Per-segment status of the tracking processor (position, caught up, replaying). */
     @GetMapping("/status")
     public Map<Integer, EventTrackerStatus> status() {
+        return trackingProcessor().processingStatus();
+    }
+
+    /** Number of events the replayable projection has seen for the account. */
+    @GetMapping("/{accountId}/activity")
+    public Map<String, Object> activity(@PathVariable String accountId) {
+        return Map.of("accountId", accountId, "events", accountActivityProjection.eventCount(accountId));
+    }
+
+    private TrackingEventProcessor trackingProcessor() {
         return eventProcessingConfiguration
-                .eventProcessorByProcessingGroup("account_tep_group", TrackingEventProcessor.class)
-                .map(TrackingEventProcessor::processingStatus)
-                .orElseThrow(() -> new IllegalStateException("TrackingEventProcessor not found"));
+                .eventProcessorByProcessingGroup(AccountActivityProjection.PROCESSING_GROUP, TrackingEventProcessor.class)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No TrackingEventProcessor for " + AccountActivityProjection.PROCESSING_GROUP));
     }
 }
