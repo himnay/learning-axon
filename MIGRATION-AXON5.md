@@ -1,6 +1,6 @@
 # <span style="color:hsl(60,80%,50%)">Axon 5 migration — not started: blocked, evidence and recommendation</span>
 
-**Verdict: stay on Axon Framework 4.13 for now.** This branch (`axon5-migration`) holds no Axon 5 code: it
+**Verdict: stay on Axon Framework 4.13 for now.** This repository holds no Axon 5 code: it
 builds with `axon-bom` 4.13.3 (which manages the 4.13.2 framework modules) on Spring Boot 4.1.1 and Java 27.
 Re-checked on 2026-09-28 against Maven Central and the Axon Framework 5.3.2 reference guide: Axon Framework 5
 is GA (`5.3.2`), but its core no longer has three things this repository is built around (sagas, the deadline
@@ -54,7 +54,7 @@ Read `maven-metadata.xml` on `repo1.maven.org` for every coordinate involved:
 
 The integration tests used to be `@Disabled`, blaming an Axon 4 `javax.persistence` vs Boot 4
 `jakarta.persistence` mismatch. **That rationale was false** — Axon 4.13 is Jakarta-based. The services
-failed to start, or silently misbehaved, for unrelated reasons, all fixed on this branch without Axon 5:
+failed to start, or silently misbehaved, for unrelated reasons, all fixed without Axon 5:
 
 | Symptom                                                                      | Real cause                                                                                                                                               | Fix                                                                                                             |
 |------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|

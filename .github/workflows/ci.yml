@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [ axon5-migration ]
+    branches: [ main ]
   pull_request:
-    branches: [ axon5-migration ]
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
