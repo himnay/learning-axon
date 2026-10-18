@@ -1,6 +1,8 @@
 package com.learning.axon.shared.commands;
 
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /**
@@ -8,12 +10,9 @@ import org.axonframework.modelling.command.TargetAggregateIdentifier;
  * The {@code @TargetAggregateIdentifier} tells Axon which aggregate instance to route the command to.
  */
 @Data
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class BaseCommand<T> {
 
     @TargetAggregateIdentifier
     public final T id;
-
-    protected BaseCommand(T id) {
-        this.id = id;
-    }
 }
