@@ -34,13 +34,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * account over HTTP and read the published message back from a queue bound to that exchange.
  * Guards against axon-amqp's auto-configured publisher being skipped on Spring Boot 4.
  */
+@ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
+@DisplayName("Command Service AMQP publishing")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.autoconfigure.exclude=",                 // the test profile excludes RabbitMQ; bring it back
         "axon.amqp.exchange=axon.event.sourcing.topic"
 })
-@ActiveProfiles("test")
-@Testcontainers(disabledWithoutDocker = true)
-@DisplayName("Command Service AMQP publishing")
 class AmqpPublishingIntegrationTest {
 
     @Container

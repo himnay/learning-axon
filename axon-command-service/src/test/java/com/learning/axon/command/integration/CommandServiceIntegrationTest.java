@@ -26,9 +26,9 @@ import static org.awaitility.Awaitility.await;
  * aggregate → embedded (JPA/H2) event store. RabbitMQ is excluded in the test profile, so the
  * AMQP publisher is not exercised here.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @DisplayName("Command Service Integration Tests")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CommandServiceIntegrationTest {
 
     @LocalServerPort

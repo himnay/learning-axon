@@ -35,9 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * handed straight to {@link AccountEventHandler}, standing in for the AMQP message source, so the
  * read model, the query handlers and the subscription-query updates run for real.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @DisplayName("Query Service Integration Tests")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class QueryServiceIntegrationTest {
 
     @LocalServerPort

@@ -34,6 +34,9 @@ import static org.awaitility.Awaitility.await;
  * queue and binding itself, and an event published the way the command service's
  * {@code SpringAMQPPublisher} publishes it must end up in the read model.
  */
+@ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
+@DisplayName("Query Service AMQP consumption")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.autoconfigure.exclude=",                 // the test profile excludes RabbitMQ; bring it back
         "axon.amqp.exchange=axon.event.sourcing.topic",
@@ -41,9 +44,6 @@ import static org.awaitility.Awaitility.await;
         "axon.eventhandling.processors.amqpEvents.source=accountMessageSource",
         "axon.eventhandling.processors.amqpEvents.mode=subscribing"
 })
-@ActiveProfiles("test")
-@Testcontainers(disabledWithoutDocker = true)
-@DisplayName("Query Service AMQP consumption")
 class AmqpConsumingIntegrationTest {
 
     @Container
